@@ -5,7 +5,7 @@ import qualified Data.ByteString.Lazy.Char8 as C8
 import Data.Text.Lazy.Encoding (decodeUtf8)
 import qualified Data.Text.Lazy as T
 
-import Data.List (groupBy, sortBy)
+import Data.List (groupBy, sortBy, transpose)
 import Data.Function (on)
 import Data.List.Utils (addToAL)
 import Data.Maybe (catMaybes)
@@ -38,13 +38,28 @@ groupAL ((k, v):al) = case lookup k r of
         Nothing -> addToAL r k [v]
     where r = groupAL al
 
-compute :: T.Text -> [(T.Text, [Float])]
-compute s =
-    let ls = T.lines s
-        h = head ls
-        vs = tail ls
-        pvs = map (getField 4 &&& getFieldValue 37) vs
-    in map (second catMaybes) $ groupAL pvs
+isMultiHeader :: T.Text -> Bool
+isMultiHeader t
+    | length (T.splitOn "|" t) /= 2 = False
+    | otherwise = d /= "kommentti"
+        where d = T.splitOn "|" t !! 1
+
+selectColumns :: [[T.Text]] -> [[T.Text]]
+selectColumns [] = []
+selectColumns (c:cs)
+    | (head c) == "puolue" = c : selectColumns cs
+    | isMultiHeader (head c) = c : selectColumns cs
+    | otherwise = selectColumns cs
+
+reduce :: [Float] -> Float
+reduce _ = 1.0
+
+compute :: T.Text -> [(T.Text, Float)]
+compute s = let cols = selectColumns $ transpose $ map (T.splitOn ";") (T.lines s)
+                party = tail $ head cols
+                vals = map (map toValue) $ tail cols
+                pvals = groupAL $ zip party (tail $ head vals)
+            in map (second (reduce . catMaybes)) pvals
 
 main :: IO ()
 main = do
