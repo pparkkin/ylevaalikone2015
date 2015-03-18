@@ -17,3 +17,4 @@ cabal.sandbox.config
 Setup.hs
 
 *.swp
+*.csv
