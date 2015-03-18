@@ -7,7 +7,7 @@ import qualified Data.Text.Lazy as T
 
 import Data.List (groupBy, sortBy, transpose)
 import Data.Function (on)
-import Data.List.Utils (addToAL)
+import Data.List.Utils (flipAL)
 import Data.Maybe (catMaybes)
 import Control.Arrow ((&&&), second)
 
@@ -31,12 +31,9 @@ lookupAll ((k, v):al) k'
     | k == k' = v : lookupAll al k'
     | otherwise = lookupAll al k'
 
-groupAL :: (Eq a) => [(a, b)] -> [(a, [b])]
-groupAL [] = []
-groupAL ((k, v):al) = case lookup k r of
-        Just vs -> addToAL r k (v:vs)
-        Nothing -> addToAL r k [v]
-    where r = groupAL al
+groupAL :: (Eq a, Eq b) => [(a, b)] -> [(a, [b])]
+groupAL = flipAL . map invert
+    where invert (a, b) = (b, a)
 
 isMultiHeader :: T.Text -> Bool
 isMultiHeader t
@@ -51,13 +48,16 @@ selectColumns (c:cs)
     | isMultiHeader (head c) = c : selectColumns cs
     | otherwise = selectColumns cs
 
+-- TODO: Something with variance and whatnot
 reduce :: [Float] -> Float
+reduce [] = 0.0
 reduce _ = 1.0
 
 compute :: T.Text -> [(T.Text, Float)]
 compute s = let cols = selectColumns $ transpose $ map (T.splitOn ";") (T.lines s)
                 party = tail $ head cols
                 vals = map (map toValue) $ tail cols
+                -- TODO: Do the same for all cols in vals, and combine 
                 pvals = groupAL $ zip party (tail $ head vals)
             in map (second (reduce . catMaybes)) pvals
 
