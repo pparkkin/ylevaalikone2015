@@ -5,7 +5,7 @@ import qualified Data.ByteString.Lazy.Char8 as C8
 import Data.Text.Lazy.Encoding (decodeUtf8)
 import qualified Data.Text.Lazy as T
 
-import Data.List (groupBy, sortBy, transpose)
+import Data.List (group, sort, groupBy, sortBy, transpose)
 import Data.Function (on)
 import Data.List.Utils (flipAL)
 import Data.Maybe (catMaybes)
@@ -48,10 +48,19 @@ selectColumns (c:cs)
     | isMultiHeader (head c) = c : selectColumns cs
     | otherwise = selectColumns cs
 
--- TODO: Something with variance and whatnot
+variance :: [Float] -> Float
+variance fs = (sum (map (\f -> (f - average) ^ 2) fs)) / n
+    where average = (sum fs) / n
+          n = fromIntegral (length fs)
+
+mode :: [Float] -> Float
+mode fs = head $ head md
+    where md = reverse $ sortBy (compare `on` length) od
+          od = group $ sort fs
+
 reduce :: [Float] -> Float
 reduce [] = 0.0
-reduce _ = 1.0
+reduce vs = mode vs
 
 compute :: T.Text -> [(T.Text, Float)]
 compute s = let cols = selectColumns $ transpose $ map (T.splitOn ";") (T.lines s)
