@@ -11,6 +11,7 @@ import Data.List.Utils (flipAL)
 import Data.Maybe (catMaybes)
 import Control.Arrow ((&&&), second)
 
+-- Try to convert a multiple choice answer to a Float
 toValue :: T.Text -> Maybe Float
 toValue t
     | T.isPrefixOf "t\195\8364ysin s" t = Just 2
@@ -19,22 +20,29 @@ toValue t
     | T.isPrefixOf "t\195\8364ysin e" t = Just (-2)
     | otherwise                         = Nothing
 
+-- Get a field by number from a single line from the file,
+-- and try to convert to Float
 getFieldValue :: Int -> T.Text -> Maybe Float
 getFieldValue n = toValue . getField n
 
+-- Get a field by number from a single line from the file
 getField :: Int -> T.Text -> T.Text
 getField n t = T.splitOn ";" t !! n
 
+-- Lookup all the values for a single key
+-- Could also be catMaybes $ lookup a $ groupAL
 lookupAll :: (Eq a) => [(a, b)] -> a -> [b]
 lookupAll [] _ = []
 lookupAll ((k, v):al) k'
     | k == k' = v : lookupAll al k'
     | otherwise = lookupAll al k'
 
+-- Group all the values for every key into a single element
 groupAL :: (Eq a, Eq b) => [(a, b)] -> [(a, [b])]
 groupAL = flipAL . map invert
     where invert (a, b) = (b, a)
 
+-- Is this a header for a multiple choice question?
 isMultiHeader :: T.Text -> Bool
 isMultiHeader t
     | length (T.splitOn "|" t) /= 2 = False
