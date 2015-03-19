@@ -41,6 +41,7 @@ isMultiHeader t
     | otherwise = d /= "kommentti"
         where d = T.splitOn "|" t !! 1
 
+-- Select the columns that should have useful data
 selectColumns :: [[T.Text]] -> [[T.Text]]
 selectColumns [] = []
 selectColumns (c:cs)
@@ -58,17 +59,37 @@ mode fs = head $ head md
     where md = reverse $ sortBy (compare `on` length) od
           od = group $ sort fs
 
+-- Make a list of floats into one
+-- Try to do it in a smart way
 reduce :: [Float] -> Float
 reduce [] = 0.0
 reduce vs = mode vs
 
-compute :: T.Text -> [(T.Text, Float)]
-compute s = let cols = selectColumns $ transpose $ map (T.splitOn ";") (T.lines s)
-                party = tail $ head cols
-                vals = map (map toValue) $ tail cols
-                -- TODO: Do the same for all cols in vals, and combine 
-                pvals = groupAL $ zip party (tail $ head vals)
-            in map (second (reduce . catMaybes)) pvals
+-- Take the party column and one value column, and combine them
+-- into an AL with party and list of values
+pvZippy :: [T.Text] -> [Maybe Float] -> [(T.Text, [Float])]
+pvZippy ps vs = let ps' = tail ps -- drop header
+                    vs' = tail vs -- ditto
+                    pvs = groupAL $ zip ps' vs'
+                in map (second catMaybes) pvs
+
+-- Take an AL of party, list of values, and combine the values for
+-- a party into one
+combine :: [(T.Text, [Float])] -> [(T.Text, Float)]
+combine pvs = map (second reduce) pvs
+
+-- Split into columns
+toCols :: T.Text -> [[T.Text]]
+toCols s = transpose $ map (T.splitOn ";") (T.lines s)
+
+compute :: T.Text -> [[(T.Text, Float)]]
+compute s = let cols = selectColumns $ toCols s
+                pcol = head cols
+                vcols = map (map toValue) $ tail cols
+                allz = map (pvZippy pcol) vcols
+                -- TODO: Combine even more.
+                -- Go from [[(T.Text, Float)]] to [(T.Text, [Float])]
+            in map combine allz
 
 main :: IO ()
 main = do
