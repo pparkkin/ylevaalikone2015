@@ -55,18 +55,18 @@ isMultiHeader t
 selectColumns :: [[T.Text]] -> [[T.Text]]
 selectColumns [] = []
 selectColumns (c:cs)
-    | (head c) == "puolue" = c : selectColumns cs
+    | head c == "puolue" = c : selectColumns cs
     | isMultiHeader (head c) = c : selectColumns cs
     | otherwise = selectColumns cs
 
 variance :: [Float] -> Float
-variance fs = (sum (map (\f -> (f - average) ^ 2) fs)) / n
-    where average = (sum fs) / n
+variance fs = sum (map (\f -> (f - average) ^ 2) fs) / n
+    where average = sum fs / n
           n = fromIntegral (length fs)
 
 mode :: [Float] -> Float
 mode fs = head $ head md
-    where md = reverse $ sortBy (compare `on` length) od
+    where md = sortBy (flip compare `on` length) od
           od = group $ sort fs
 
 -- Make a list of floats into one
@@ -86,7 +86,7 @@ pvZippy ps vs = let ps' = tail ps -- drop header
 -- Take an AL of party, list of values, and combine the values for
 -- a party into one
 combine :: [(T.Text, [Float])] -> [(T.Text, Float)]
-combine pvs = map (second reduce) pvs
+combine = map (second reduce)
 
 -- Split into columns
 toCols :: T.Text -> [[T.Text]]
@@ -95,7 +95,7 @@ toCols s = transpose $ map (T.splitOn ";") (T.lines s)
 -- Merge column values into lists
 -- Assumes same order
 mergeVK :: [[(T.Text, Float)]] -> [(T.Text, [Float])]
-mergeVK = concat . (map groupAL) . transpose
+mergeVK = concatMap groupAL . transpose
 
 -- Calculate distance between two parties
 distance :: [Float] -> [Float] -> Float
@@ -103,7 +103,7 @@ distance xs ys = sqrt $ sum $ map (\(x, y) -> (x - y) ^ 2) $ zip xs ys
 
 -- Calculate distances to others
 distances :: (T.Text, [Float]) -> [(T.Text, [Float])] -> (T.Text, [Float])
-distances (p, xs) ys = (p, map ((distance xs) . snd) ys)
+distances (p, xs) ys = (p, map (distance xs . snd) ys)
 
 compute :: T.Text -> [(T.Text, [Float])]
 compute s = let cols = selectColumns $ toCols s
@@ -112,8 +112,8 @@ compute s = let cols = selectColumns $ toCols s
                 allz = map (pvZippy pcol) vcols
                 merged = mergeVK $ map combine allz
                 goodz = filter interesting merged
-            in map (\g -> distances g goodz) goodz
-        where interesting (_, vs) = 50 < (length (filter (/= 0.0) vs))
+            in map (`distances` goodz) goodz
+        where interesting (_, vs) = 50 < length (filter (/= 0.0) vs)
 
 printableName :: T.Text -> T.Text
 printableName n = if T.isPrefixOf "Suomen " n
@@ -123,13 +123,13 @@ printableName n = if T.isPrefixOf "Suomen " n
 printRow :: (T.Text, [Float]) -> IO ()
 printRow (p, vs) = do
     putStr $ printf "%5s " (take 5 (T.unpack (printableName p)))
-    mapM_ (\v -> putStr (printf "%5.2f " v)) vs
+    mapM_ (putStr . printf "%5.2f ") vs
     putStrLn ""
 
 printHeader :: [(T.Text, [Float])] -> IO ()
 printHeader t = do
     putStr "      "
-    mapM_ (\r -> putStr $ printf "%5s " (take 5 (T.unpack (printableName (fst r))))) t
+    mapM_ (putStr . printf "%5s " . take 5 . T.unpack . printableName . fst) t
     putStrLn ""
 
 printTable :: [(T.Text, [Float])] -> IO ()
