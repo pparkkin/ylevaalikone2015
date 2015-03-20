@@ -126,8 +126,15 @@ printRow (p, vs) = do
     mapM_ (\v -> putStr (printf "%5.2f " v)) vs
     putStrLn ""
 
+printHeader :: [(T.Text, [Float])] -> IO ()
+printHeader t = do
+    putStr "      "
+    mapM_ (\r -> putStr $ printf "%5s " (take 5 (T.unpack (printableName (fst r))))) t
+    putStrLn ""
+
 printTable :: [(T.Text, [Float])] -> IO ()
 printTable t = do
+    printHeader t
     mapM_ printRow t
 
 main :: IO ()

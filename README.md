@@ -2,6 +2,7 @@
 
 Explore the data from YLE Vaalikone 2015.
 
+
 ## Get the Data
 
 I did not want to host the data in the repo, so there's a script to download the data. The script will also convert it to UTF-8. The script uses wget and iconv. Make sure both are installed before you run it.
@@ -9,6 +10,7 @@ I did not want to host the data in the repo, so there's a script to download the
 Before you get started, run the script.
 
     $ fetch_data.sh
+
 
 ## Build and Run
 
@@ -27,6 +29,7 @@ Run it.
 
 That should give you a nice table with distances between parties' views.
 
+          Krist ruots Kesku Sosia Kansa Itsen Vasem Vihre Kommu Piraa Perus TyÃ¶v Muuto Kommu
     Krist  0.00 14.18 11.87 10.82 13.42 15.43 13.82 14.53 16.46 15.23 14.04 14.93 14.49 15.87
     ruots 14.18  0.00 16.31 15.30 15.00 18.63 16.25 14.83 17.66 16.46 18.38 15.75 18.36 17.97
     Kesku 11.87 16.31  0.00 15.75 13.23 15.07 17.15 16.55 18.87 15.20 11.75 16.61 14.59 16.82
@@ -40,8 +43,9 @@ That should give you a nice table with distances between parties' views.
     Perus 14.04 18.38 11.75 16.85 16.76 14.39 17.55 18.60 19.29 16.03  0.00 17.03 13.60 16.22
     TyÃ¶v 14.93 15.75 16.61 14.90 17.64 15.65 14.21 16.12 14.90 16.46 17.03  0.00 16.22 13.45
     Muuto 14.49 18.36 14.59 15.72 17.26 13.49 14.93 17.86 17.64 15.87 13.60 16.22  0.00 15.30
-    Kommu 15.87 17.97 16.82 15.59 18.71 14.21 13.89 14.53 14.46 15.87 16.22 13.45 15.30  0.00
-    
+    Kommu 15.87 17.97 16.82 15.59 18.71 14.21 13.89 14.53 14.46 15.87 16.22 13.45 15.30  0.00 
+
+
 ## Thank You
 
 Please let me know if you have any comments, or find any bugs!
