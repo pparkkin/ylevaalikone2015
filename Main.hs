@@ -90,19 +90,24 @@ combine pvs = map (second reduce) pvs
 toCols :: T.Text -> [[T.Text]]
 toCols s = transpose $ map (T.splitOn ";") (T.lines s)
 
-compute :: T.Text -> [[(T.Text, Float)]]
+mergeVK :: [[(T.Text, Float)]] -> [(T.Text, [Float])]
+mergeVK = concat . (map groupAL) . transpose
+
+compute :: T.Text -> [(T.Text, [Float])]
 compute s = let cols = selectColumns $ toCols s
                 pcol = head cols
                 vcols = map (map toValue) $ tail cols
                 allz = map (pvZippy pcol) vcols
-                -- TODO: Combine even more.
-                -- Go from [[(T.Text, Float)]] to [(T.Text, [Float])]
-            in map combine allz
+                merged = mergeVK $ map combine allz
+            in filter interesting merged
+        where interesting (_, vs) = 50 < (length (filter (/= 0.0) vs))
 
 main :: IO ()
 main = do
     putStrLn "Hello, World!"
     args <- getArgs
     content <- C8.readFile (head args)
-    print $ compute $ decodeUtf8 content
+    let res = compute $ decodeUtf8 content
+        out = res
+    print out
 
