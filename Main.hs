@@ -11,6 +11,8 @@ import Data.List.Utils (flipAL)
 import Data.Maybe (catMaybes)
 import Control.Arrow ((&&&), second)
 
+import Text.Printf (printf)
+
 -- Try to convert a multiple choice answer to a Float
 toValue :: T.Text -> Maybe Float
 toValue t
@@ -113,12 +115,25 @@ compute s = let cols = selectColumns $ toCols s
             in map (\g -> distances g goodz) goodz
         where interesting (_, vs) = 50 < (length (filter (/= 0.0) vs))
 
+printableName :: T.Text -> T.Text
+printableName n = if T.isPrefixOf "Suomen " n
+    then T.drop 7 n
+    else n
+
+printRow :: (T.Text, [Float]) -> IO ()
+printRow (p, vs) = do
+    putStr $ printf "%5s " (take 5 (T.unpack (printableName p)))
+    mapM_ (\v -> putStr (printf "%5.2f " v)) vs
+    putStrLn ""
+
+printTable :: [(T.Text, [Float])] -> IO ()
+printTable t = do
+    mapM_ printRow t
+
 main :: IO ()
 main = do
     putStrLn "Hello, World!"
     args <- getArgs
     content <- C8.readFile (head args)
-    let res = compute $ decodeUtf8 content
-        out = res
-    mapM_ (\(p, vs) -> print p >> print vs) out
+    printTable $ compute $ decodeUtf8 content
 
