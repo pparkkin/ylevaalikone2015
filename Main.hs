@@ -90,8 +90,18 @@ combine pvs = map (second reduce) pvs
 toCols :: T.Text -> [[T.Text]]
 toCols s = transpose $ map (T.splitOn ";") (T.lines s)
 
+-- Merge column values into lists
+-- Assumes same order
 mergeVK :: [[(T.Text, Float)]] -> [(T.Text, [Float])]
 mergeVK = concat . (map groupAL) . transpose
+
+-- Calculate distance between two parties
+distance :: [Float] -> [Float] -> Float
+distance xs ys = sqrt $ sum $ map (\(x, y) -> (x - y) ^ 2) $ zip xs ys
+
+-- Calculate distances to others
+distances :: (T.Text, [Float]) -> [(T.Text, [Float])] -> (T.Text, [Float])
+distances (p, xs) ys = (p, map ((distance xs) . snd) ys)
 
 compute :: T.Text -> [(T.Text, [Float])]
 compute s = let cols = selectColumns $ toCols s
@@ -99,7 +109,8 @@ compute s = let cols = selectColumns $ toCols s
                 vcols = map (map toValue) $ tail cols
                 allz = map (pvZippy pcol) vcols
                 merged = mergeVK $ map combine allz
-            in filter interesting merged
+                goodz = filter interesting merged
+            in map (\g -> distances g goodz) goodz
         where interesting (_, vs) = 50 < (length (filter (/= 0.0) vs))
 
 main :: IO ()
@@ -109,5 +120,5 @@ main = do
     content <- C8.readFile (head args)
     let res = compute $ decodeUtf8 content
         out = res
-    print out
+    mapM_ (\(p, vs) -> print p >> print vs) out
 
