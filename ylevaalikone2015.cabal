@@ -1,13 +1,14 @@
-name:                a
+name:                ylevaalikone2015
 version:             0.1.0.0
 author:              Paavo
 maintainer:          pparkkin@gmail.com
 build-type:          Simple
+extra-source-files:  README.md
 cabal-version:       >=1.10
 
-executable a
-  main-is:             Main.hs
+library
   default-language:    Haskell2010
+  exposed-modules:     VK
   build-depends:       base
                      , bytestring
                      , text

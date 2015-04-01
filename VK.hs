@@ -1,11 +1,26 @@
 {-# LANGUAGE OverloadedStrings #-}
 
+module VK (
+    loadData
+  , parties
+  , issues
+  , position
+  , distance
+  , printDistanceTable
+) where
+
 import System.Environment (getArgs)
 import qualified Data.ByteString.Lazy.Char8 as C8
 import Data.Text.Lazy.Encoding (decodeUtf8)
 import qualified Data.Text.Lazy as T
 
-import Data.List (group, sort, groupBy, sortBy, transpose)
+import Data.List (group
+                , sort
+                , groupBy
+                , sortBy
+                , transpose
+                , nub
+                , elemIndex)
 import Data.Function (on)
 import Data.List.Utils (flipAL)
 import Data.Maybe (catMaybes)
@@ -97,23 +112,20 @@ toCols s = transpose $ map (T.splitOn ";") (T.lines s)
 mergeVK :: [[(T.Text, Float)]] -> [(T.Text, [Float])]
 mergeVK = concatMap groupAL . transpose
 
--- Calculate distance between two parties
-distance :: [Float] -> [Float] -> Float
-distance xs ys = sqrt $ sum $ map (\(x, y) -> (x - y) ^ 2) $ zip xs ys
-
 -- Calculate distances to others
 distances :: (T.Text, [Float]) -> [(T.Text, [Float])] -> (T.Text, [Float])
 distances (p, xs) ys = (p, map (distance xs . snd) ys)
 
-compute :: T.Text -> [(T.Text, [Float])]
+compute :: T.Text -> ([Party], [Issue], [[Float]])
 compute s = let cols = selectColumns $ toCols s
                 pcol = head cols
                 vcols = map (map toValue) $ tail cols
                 allz = map (pvZippy pcol) vcols
                 merged = mergeVK $ map combine allz
                 goodz = filter interesting merged
-            in map (`distances` goodz) goodz
-        where interesting (_, vs) = 50 < length (filter (/= 0.0) vs)
+                interesting (_, vs) = 50 < length (filter (/= 0.0) vs)
+                tmp = map (`distances` goodz) goodz
+            in (map fst merged, tail $ map head cols, map snd merged)
 
 printableName :: T.Text -> T.Text
 printableName n = if T.isPrefixOf "Suomen " n
@@ -137,10 +149,50 @@ printTable t = do
     printHeader t
     mapM_ printRow t
 
-main :: IO ()
-main = do
-    putStrLn "Hello, World!"
-    args <- getArgs
-    content <- C8.readFile (head args)
-    printTable $ compute $ decodeUtf8 content
+--parseFile :: String -> IO ()
+--parseFile fn = do
+--    content <- C8.readFile fn
+--    printTable $ compute $ decodeUtf8 content
+
+-- TODO: Everything below this
+
+type Party = T.Text
+type Issue = T.Text
+
+data VKData = VKData {
+    parties :: [Party]
+  , issues :: [Issue]
+  , positions :: [[Float]]
+} deriving (Show)
+
+newVKData :: ([Party], [Issue], [[Float]]) -> VKData
+newVKData (ps, is, ts) = VKData ps is ts
+
+dropUninteresting :: VKData -> VKData
+dropUninteresting (VKData ps' is ts') = VKData ps is ts
+    where ps = map fst goodz
+          ts = map snd goodz
+          goodz = filter interesting combined
+          combined = zip ps' ts'
+          interesting (_, vs) = 50 < length (filter (/= 0.0) vs)
+
+loadData :: String -> IO VKData
+loadData fn = do
+    content <- C8.readFile fn
+    return $ newVKData $ compute $ decodeUtf8 content
+
+position :: Party -> VKData -> [Float]
+position p d = case pi of
+        Just i -> positions d !! i
+        Nothing -> []
+    where pi = elemIndex p (parties d)
+
+-- Calculate distance between two parties
+distance :: [Float] -> [Float] -> Float
+distance xs ys = sqrt $ sum $ map (\(x, y) -> (x - y) ^ 2) $ zip xs ys
+
+printDistanceTable :: VKData -> IO ()
+printDistanceTable (VKData ps _ ts) = printTable table
+    where table = map (`distances` combined) combined
+          combined = zip ps ts
 
