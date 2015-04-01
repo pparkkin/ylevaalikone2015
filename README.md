@@ -12,7 +12,7 @@ Before you get started, run the script.
     $ fetch_data.sh
 
 
-## Build and Run
+## Build
 
 The program uses cabal to build. Start by creating a sandbox and installing dependencies.
 
@@ -22,6 +22,8 @@ The program uses cabal to build. Start by creating a sandbox and installing depe
 Build the program.
 
     $ cabal build
+
+## Explore
 
 Open a REPL.
 
