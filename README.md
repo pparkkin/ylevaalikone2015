@@ -54,8 +54,8 @@ The function `position` will give you the position for a single party.
 
 The function `distance` shows the distance between two parties.
 
-    *VK> let peruss = parties d !! 0
-    *VK> distance (position kesk d) (position peruss d)
+    *VK> let kd = parties d !! 0
+    *VK> distance (position kesk d) (position kd d)
     11.74734
 
 And finally, `dropUninteresting` will drop some uninteresting parties from the data set, and `printDistanceTable` will print out a table of distance from the data.
