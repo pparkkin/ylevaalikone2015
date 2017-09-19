@@ -18,3 +18,7 @@ Setup.hs
 
 *.swp
 *.csv
+
+.stack-work
+
+test.db
