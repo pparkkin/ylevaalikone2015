@@ -6,9 +6,11 @@ import qualified Data.Text as T
 
 import Database.SQLite.Simple
 
+createQueries = "create_tables.sql"
+
 createTables :: Connection -> IO ()
 createTables conn = do
-    sql <- readFile "create_tables.sql"
+    sql <- readFile createQueries
     let qs = filter (not . T.null) $ map stripComments $ T.splitOn ";" (T.pack sql)
     mapM_ (execute_ conn) (map Query qs)
   where
