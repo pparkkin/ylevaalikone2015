@@ -2,6 +2,11 @@
 
 module Main where
 
+import Control.Monad
+import System.Exit
+import System.IO
+import System.Environment
+
 import qualified Data.Text as T
 
 import Database.SQLite.Simple
@@ -18,5 +23,9 @@ createTables conn = do
 
 main :: IO ()
 main = do
-  putStrLn "Hello, Woeld!"
-  withConnection "test.db" createTables
+  args <- getArgs
+  when (length args < 1) $ do
+    hPutStrLn stderr "Missing database file argument."
+    exitWith (ExitFailure 1)
+  putStrLn "Creating tables."
+  withConnection (head args) createTables
