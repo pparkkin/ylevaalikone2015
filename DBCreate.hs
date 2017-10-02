@@ -3,15 +3,18 @@
 module Main where
 
 import Control.Monad
+import Network.Download
 import System.Exit
 import System.IO
 import System.Environment
 
+import qualified Data.ByteString as B
 import qualified Data.Text as T
 
 import Database.SQLite.Simple
 
 createQueries = "create_tables.sql"
+dataURL = "http://data.yle.fi/dokumentit/Eduskuntavaalit2015/vastaukset_avoimena_datana.csv"
 
 createTables :: Connection -> IO ()
 createTables conn = do
@@ -21,6 +24,10 @@ createTables conn = do
   where
     stripComments = T.strip . T.unlines . (map (fst . (T.breakOn "--"))) . T.lines
 
+loadData :: B.ByteString -> IO ()
+loadData csvData = do
+  putStrLn "Loading data into database."
+
 main :: IO ()
 main = do
   args <- getArgs
@@ -29,3 +36,12 @@ main = do
     exitWith (ExitFailure 1)
   putStrLn "Creating tables."
   withConnection (head args) createTables
+  putStrLn "Downloading data file."
+  csvRsp <- openURI dataURL
+  case csvRsp of
+    Left err -> do
+      hPutStrLn stderr "Error downloading data file."
+      hPutStrLn stderr err
+      exitWith (ExitFailure 2)
+    Right csvData -> do
+      loadData csvData
