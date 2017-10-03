@@ -13,21 +13,21 @@ import qualified Data.Vector as V
 
 import Database.SQLite.Simple
 
-
--- TODO: Performance
-uniques :: Eq a => Vector a -> Vector a
-uniques = V.fromList . (V.foldr (\r a -> if elem r a then a else r:a) [])
-
-textColumn :: Int -> Vector (Vector B.ByteString) -> Vector T.Text
-textColumn n = V.map (decodeUtf8 . (V.! n))
+-- NOTE
+-- I'm going directly from the CSV data to normalized tables. Possibly
+-- a better option might be to dump the CSV into a single raw data
+-- table and pull into normalized tables from there using SQL.
 
 loadData :: Vector (Vector B.ByteString) -> Connection -> IO ()
 loadData csvData conn = do
   putStrLn "Loading data into database."
-  let vps = V.map parseVaalipiiriID $ uniques $ textColumn 0 csvData
-  loadVaalipiirit vps conn
-  let ps = V.indexed $ uniques $ textColumn 4 csvData
-  loadPuolueet ps conn
+  mapM_ (\(t, f) -> loadCollectionTable t (f csvData) conn) collectionTables
+
+collectionTables =
+  [ ("vaalipiirit", (V.map parseVaalipiiriID) . uniques . (textColumn 0))
+  , ("puolueet", V.indexed . uniques . (textColumn 4))
+  , ("sukupuolet", V.indexed . uniques . (textColumn 6))
+  ]
 
 loadCollectionTable :: String -> Vector (Int, T.Text) -> Connection -> IO ()
 loadCollectionTable n d c = do
@@ -37,15 +37,16 @@ loadCollectionTable n d c = do
     q = Query $ T.pack $ "INSERT INTO " ++ n ++ " (id, name) VALUES (?, ?)"
     vs r = ((fst r :: Int), (snd r :: T.Text))
 
+-- TODO: Performance
+uniques :: Eq a => Vector a -> Vector a
+uniques = V.fromList . (V.foldr (\r a -> if elem r a then a else r:a) [])
+
+textColumn :: Int -> Vector (Vector B.ByteString) -> Vector T.Text
+textColumn n = V.map (decodeUtf8 . (V.! n))
+
 parseVaalipiiriID :: T.Text -> (Int, T.Text)
 parseVaalipiiriID t = (vpID, vpName)
   where
     (vpID, vpName) =
       case TR.decimal t of
         Right (i, n) -> (i, T.strip n)
-
-loadVaalipiirit :: Vector (Int, T.Text) -> Connection -> IO ()
-loadVaalipiirit = loadCollectionTable "vaalipiirit"
-
-loadPuolueet :: Vector (Int, T.Text) -> Connection -> IO ()
-loadPuolueet = loadCollectionTable "puolueet"
