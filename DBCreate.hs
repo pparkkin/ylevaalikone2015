@@ -22,6 +22,8 @@ import qualified Data.Text as T
 
 import Database.SQLite.Simple
 
+import DBLoad
+
 createQueries = "create_tables.sql"
 dataFileName = "vastaukset_avoimena_datana.csv"
 dataURL = "http://data.yle.fi/dokumentit/Eduskuntavaalit2015/vastaukset_avoimena_datana.csv"
@@ -51,10 +53,6 @@ decodeCsv :: B.ByteString -> IO (Either String (Vector (Vector B.ByteString)))
 decodeCsv csvData = do
   putStrLn "Decoding CVS data."
   return (decodeWith decodeOptions HasHeader (BL.fromStrict csvData))
-
-loadData :: Vector (Vector B.ByteString) -> Connection -> IO ()
-loadData csvData conn = do
-  putStrLn "Loading data into database."
 
 main :: IO ()
 main = do

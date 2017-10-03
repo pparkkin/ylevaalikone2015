@@ -17,6 +17,7 @@ library
 executable dbcreate
   default-language:    Haskell2010
   main-is:             DBCreate.hs
+  other-modules:       DBLoad
   build-depends:       base
                      , bytestring
                      , cassava
