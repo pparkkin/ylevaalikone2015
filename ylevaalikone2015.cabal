@@ -19,7 +19,9 @@ executable dbcreate
   main-is:             DBCreate.hs
   build-depends:       base
                      , bytestring
+                     , cassava
                      , directory
                      , download
                      , sqlite-simple
                      , text
+                     , vector
