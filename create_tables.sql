@@ -1,37 +1,36 @@
-
 CREATE TABLE vaalipiirit (
   id integer PRIMARY KEY,
-  name text NOT NULL UNIQUE
+  value text NOT NULL UNIQUE
 );
 
 CREATE TABLE puolueet (
   id integer PRIMARY KEY,
-  name text NOT NULL
+  value text NOT NULL
 );
 
 CREATE TABLE sukupuolet (
   id integer PRIMARY KEY,
-  name text NOT NULL
+  value text NOT NULL
 );
 
 CREATE TABLE kotikunnat (
   id integer PRIMARY KEY,
-  name text NOT NULL
+  value text NOT NULL
 );
 
 CREATE TABLE kielet (
   id integer PRIMARY KEY,
-  name text NOT NULL
+  value text NOT NULL
 );
 
 CREATE TABLE koulutukset (
   id integer PRIMARY KEY,
-  name text NOT NULL
+  value text NOT NULL
 );
 
 CREATE TABLE uskonnolliset_yhteisot (
   id integer PRIMARY KEY,
-  name text NOT NULL
+  value text NOT NULL
 );
 
 CREATE TABLE kokemukset (

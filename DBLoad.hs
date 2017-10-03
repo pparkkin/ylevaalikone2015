@@ -27,6 +27,16 @@ collectionTables =
   [ ("vaalipiirit", (V.map parseVaalipiiriID) . uniques . (textColumn 0))
   , ("puolueet", V.indexed . uniques . (textColumn 4))
   , ("sukupuolet", V.indexed . uniques . (textColumn 6))
+  , ("kotikunnat", V.indexed . uniques . (textColumn 11))
+  , ("kielet", V.indexed . uniques . (V.concatMap parseMultiple) . (textColumn 29))
+  , ("koulutukset", V.indexed . uniques . (textColumn 28))
+  , ("uskonnolliset_yhteisot", V.indexed . uniques . (textColumn 30))
+  , ("kokemukset", V.indexed . uniques . (V.concatMap parseMultiple) . (textColumn 32))
+  , ("vaalibudjetit", V.indexed . uniques . (textColumn 33))
+  , ("ulkopuolisen_rahoituksen_osuudet", V.indexed . uniques . (textColumn 34))
+  , ("ulkopuolisen_rahoituksen_lahteet", V.indexed . uniques . (textColumn 35))
+  , ("vuositulot", V.indexed . uniques . (textColumn 37))
+  , ("sijoitukset", V.indexed . uniques . (textColumn 38))
   ]
 
 loadCollectionTable :: String -> Vector (Int, T.Text) -> Connection -> IO ()
@@ -34,7 +44,7 @@ loadCollectionTable n d c = do
   putStrLn ("Loading table " ++ n ++ ".")
   V.mapM_ (\r -> execute c q (vs r)) d
   where
-    q = Query $ T.pack $ "INSERT INTO " ++ n ++ " (id, name) VALUES (?, ?)"
+    q = Query $ T.pack $ "INSERT INTO " ++ n ++ " (id, value) VALUES (?, ?)"
     vs r = ((fst r :: Int), (snd r :: T.Text))
 
 -- TODO: Performance
@@ -50,3 +60,6 @@ parseVaalipiiriID t = (vpID, vpName)
     (vpID, vpName) =
       case TR.decimal t of
         Right (i, n) -> (i, T.strip n)
+
+parseMultiple :: T.Text -> Vector T.Text
+parseMultiple = V.fromList . (filter (not . T.null)) . (map T.strip) . (T.splitOn "|")
