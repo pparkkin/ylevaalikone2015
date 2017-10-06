@@ -2,6 +2,8 @@
 
 module DBLoad where
 
+import Data.Int ( Int64 )
+import Data.List ( intercalate )
 import Data.Text.Encoding ( decodeUtf8 )
 import Data.Vector ( Vector )
 
@@ -22,22 +24,125 @@ loadData :: Vector (Vector B.ByteString) -> Connection -> IO ()
 loadData csvData conn = do
   putStrLn "Loading data into database."
   mapM_ (\(t, f) -> loadCollectionTable t (f csvData) conn) collectionTables
+  loadVastaajatTable csvData conn
 
 collectionTables =
   [ ("vaalipiirit", (V.map parseVaalipiiriID) . uniques . (textColumn 0))
   , ("puolueet", V.indexed . uniques . (textColumn 4))
   , ("sukupuolet", V.indexed . uniques . (textColumn 6))
   , ("kotikunnat", V.indexed . uniques . (textColumn 11))
-  , ("kielet", V.indexed . uniques . (V.concatMap parseMultiple) . (textColumn 29))
+  , ("kielet", V.indexed . uniques . (concatColumns (multiColumn 29) (textColumn 18)))
   , ("koulutukset", V.indexed . uniques . (textColumn 28))
   , ("uskonnolliset_yhteisot", V.indexed . uniques . (textColumn 30))
-  , ("kokemukset", V.indexed . uniques . (V.concatMap parseMultiple) . (textColumn 32))
+  , ("kokemukset", V.indexed . uniques . (multiColumn 32))
   , ("vaalibudjetit", V.indexed . uniques . (textColumn 33))
   , ("ulkopuolisen_rahoituksen_osuudet", V.indexed . uniques . (textColumn 34))
   , ("ulkopuolisen_rahoituksen_lahteet", V.indexed . uniques . (textColumn 35))
   , ("vuositulot", V.indexed . uniques . (textColumn 37))
   , ("sijoitukset", V.indexed . uniques . (textColumn 38))
   ]
+
+-- Used to fix some spelling mistakes
+valueMapping :: [(T.Text, T.Text)]
+valueMapping = [ ("lappeenranta", "Lappeenranta") ]
+
+data FieldMapping = IntColumnIndex Int (T.Text -> Either String Int64)-- field value is an int value from a column, includes conversion function
+                  | TextColumnIndex Int -- field value is a text value from a column
+                  | TableReference Int String -- field value is a reference to another table
+
+-- Map fields in `vastaajat` table to CSV columns and other tables
+fieldMapping :: [(String, FieldMapping)]
+fieldMapping = [ ("id", IntColumnIndex 1 textToInt)
+               , ("sukunimi", TextColumnIndex 2)
+               , ("etunimi", TextColumnIndex 3)
+               , ("puolue", TableReference 4 "puolueet")
+               , ("ika", IntColumnIndex 5 textToInt)
+               , ("sukupuoli", TableReference 6 "sukupuolet")
+               , ("kansanedustaja", IntColumnIndex 7 textToInt)
+               , ("vastattu", TextColumnIndex 8)
+               , ("valittu", IntColumnIndex 9 textToInt)
+               , ("sitoutumaton", IntColumnIndex 10 textToInt)
+               , ("kotikunta", TableReference 11 "kotikunnat")
+               , ("ehdokasnumero", IntColumnIndex 12 textToInt)
+               , ("miksi_eduskuntaan", TextColumnIndex 13)
+               , ("mita_edistaa", TextColumnIndex 14)
+               , ("vaalilupaus1", TextColumnIndex 15)
+               , ("vaalilupaus2", TextColumnIndex 16)
+               , ("vaalilupaus3", TextColumnIndex 17)
+               , ("aidinkieli", TableReference 18 "kielet")
+               , ("kotisivu", TextColumnIndex 19)
+               , ("facebook", TextColumnIndex 20)
+               , ("twitter", TextColumnIndex 21)
+               , ("lapsia", IntColumnIndex 22 kyllaEiToInt)
+               , ("perhe", TextColumnIndex 23)
+               , ("vapaa_ajalla", TextColumnIndex 24)
+               , ("tyonantaja", TextColumnIndex 25)
+               , ("ammattiasema", TextColumnIndex 26)
+               , ("ammatti", TextColumnIndex 27)
+               , ("koulutus", TableReference 28 "koulutukset")
+               , ("uskonnollinen_yhteiso", TableReference 30 "uskonnolliset_yhteisot")
+               , ("puolueen_jasen", IntColumnIndex 31 kyllaEiToInt)
+               , ("vaalibudjetti", TableReference 33 "vaalibudjetit")
+               , ("ulkopuolisen_rahoituksen_osuus", TableReference 34 "ulkopuolisen_rahoituksen_osuudet")
+               , ("ulkopuolisen_rahoituken_lahde", TableReference 35 "ulkopuolisen_rahoituksen_lahteet")
+               , ("sidonnaisuudet", TextColumnIndex 36)
+               , ("vuositulot", TableReference 37 "vuositulot")
+               , ("sijoitukset", TableReference 38 "sijoitukset")
+               ]
+
+loadVastaajatTable :: Vector (Vector B.ByteString) -> Connection -> IO ()
+loadVastaajatTable csvData conn = do
+  putStrLn ("Loading table vastaajat.")
+  V.mapM_ (loadVastaajatRow conn) csvData
+
+loadVastaajatRow :: Connection -> Vector B.ByteString -> IO ()
+loadVastaajatRow conn row = do
+  params <- constructVastaajaParams conn row
+  execute conn query params
+  where
+    fieldNames = map fst fieldMapping
+    fields = intercalate "," fieldNames
+    qms = intercalate "," $ take (length fieldNames) $ repeat "?"
+    query = Query $ T.pack $ "INSERT INTO vastaajat (" ++ fields ++ ") VALUES (" ++ qms ++ ")"
+
+constructVastaajaParams :: Connection -> Vector B.ByteString -> IO [SQLData]
+constructVastaajaParams conn row = mapM ((constructVastaajaParam conn row) . snd) fieldMapping
+
+textToInt :: T.Text -> Either String Int64
+textToInt cv =
+  case TR.decimal cv of
+    Right (i, _) -> Right i
+    Left l -> Left l
+
+kyllaEiToInt :: T.Text -> Either String Int64
+kyllaEiToInt "kyllä" = Right 1
+kyllaEiToInt "ei" = Right 0
+kyllaEiToInt _ = Right (-1)
+
+constructVastaajaParam :: Connection -> Vector B.ByteString -> FieldMapping -> IO SQLData
+constructVastaajaParam _ row (IntColumnIndex n f) = do
+  let cv = textColumnValue n row
+      iv = f cv
+  case iv of
+    Right i ->
+      return (SQLInteger i)
+    Left err -> do
+      putStrLn $ "Unable to parse integer value '" ++ (T.unpack cv) ++ "' from column '" ++ (show n) ++ "'"
+      return (SQLInteger (-1))
+constructVastaajaParam _ row (TextColumnIndex n) = do
+  let cv = textColumnValue n row
+  return (SQLText cv)
+constructVastaajaParam c row (TableReference n t) = do
+  let cv = textColumnValue n row
+      q = Query $ T.pack $ "SELECT id FROM " ++ t ++ " WHERE value LIKE ?"
+  rs <- query c q (Only cv)
+  case rs of
+    [[i]] ->
+      return (SQLInteger i)
+    _ -> do
+      putStrLn $ "Unable to find value '" ++ (T.unpack cv) ++ "' in table '" ++ t ++ "'"
+      putStrLn $ "Found '" ++ (show rs) ++ "'"
+      return (SQLInteger (-1))
 
 loadCollectionTable :: String -> Vector (Int, T.Text) -> Connection -> IO ()
 loadCollectionTable n d c = do
@@ -47,12 +152,25 @@ loadCollectionTable n d c = do
     q = Query $ T.pack $ "INSERT INTO " ++ n ++ " (id, value) VALUES (?, ?)"
     vs r = ((fst r :: Int), (snd r :: T.Text))
 
--- TODO: Performance
 uniques :: Eq a => Vector a -> Vector a
 uniques = V.fromList . (V.foldr (\r a -> if elem r a then a else r:a) [])
 
 textColumn :: Int -> Vector (Vector B.ByteString) -> Vector T.Text
-textColumn n = V.map (decodeUtf8 . (V.! n))
+textColumn n = V.map (textColumnValue n)
+
+multiColumn :: Int -> Vector (Vector B.ByteString) -> Vector T.Text
+multiColumn n = (V.concatMap parseMultiple) . (textColumn n)
+
+concatColumns :: (Vector (Vector B.ByteString) -> Vector T.Text) -> (Vector (Vector B.ByteString) -> Vector T.Text) -> Vector (Vector B.ByteString) -> Vector T.Text
+concatColumns one two v = mappend (one v) (two v)
+
+textColumnValue :: Int -> Vector B.ByteString -> T.Text
+textColumnValue n vector =
+  let cv = T.strip $ decodeUtf8 $ vector V.! n
+  -- Use corrected value from valueMapping if available
+  in case lookup cv valueMapping of
+    Just v -> v
+    Nothing -> cv
 
 parseVaalipiiriID :: T.Text -> (Int, T.Text)
 parseVaalipiiriID t = (vpID, vpName)
@@ -62,4 +180,4 @@ parseVaalipiiriID t = (vpID, vpName)
         Right (i, n) -> (i, T.strip n)
 
 parseMultiple :: T.Text -> Vector T.Text
-parseMultiple = V.fromList . (filter (not . T.null)) . (map T.strip) . (T.splitOn "|")
+parseMultiple = V.fromList . (map T.strip) . (T.splitOn "|")

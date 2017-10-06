@@ -63,22 +63,6 @@ CREATE TABLE sijoitukset (
   value text NOT NULL
 );
 
-CREATE TABLE kielitaidot ( -- many-to-many
-  vastaaja_id integer NOT NULL,
-  kieli_id integer NOT NULL,
-  PRIMARY KEY (vastaaja_id, kieli_id),
-  FOREIGN KEY (vastaaja_id) REFERENCES vastaajat (id),
-  FOREIGN KEY (kieli_id) REFERENCES kielet (id)
-);
-
-CREATE TABLE poliittiset_kokemukset ( -- many-to-many
-  vastaaja_id integer NOT NULL,
-  kokemus_id integer NOT NULL,
-  PRIMARY KEY (vastaaja_id, kokemus_id),
-  FOREIGN KEY (vastaaja_id) REFERENCES vastaajat (id),
-  FOREIGN KEY (kokemus_id) REFERENCES kokemukset (id)
-);
-
 CREATE TABLE vastaajat (
   id integer PRIMARY KEY,
   sukunimi text,
@@ -91,7 +75,7 @@ CREATE TABLE vastaajat (
   valittu integer,
   sitoutumaton integer,
   kotikunta integer, -- FK
-  ehdokasnumero integer
+  ehdokasnumero integer,
   miksi_eduskuntaan text,
   mita_edistaa text,
   vaalilupaus1 text,
@@ -128,6 +112,22 @@ CREATE TABLE vastaajat (
   FOREIGN KEY (ulkopuolisen_rahoituken_lahde) REFERENCES ulkopuolisen_rahoituksen_lahteet (id),
   FOREIGN KEY (vuositulot) REFERENCES vuositulot (id),
   FOREIGN KEY (sijoitukset) REFERENCES sijoitukset (id)
+);
+
+CREATE TABLE kielitaidot ( -- many-to-many
+  vastaaja_id integer NOT NULL,
+  kieli_id integer NOT NULL,
+  PRIMARY KEY (vastaaja_id, kieli_id),
+  FOREIGN KEY (vastaaja_id) REFERENCES vastaajat (id),
+  FOREIGN KEY (kieli_id) REFERENCES kielet (id)
+);
+
+CREATE TABLE poliittiset_kokemukset ( -- many-to-many
+  vastaaja_id integer NOT NULL,
+  kokemus_id integer NOT NULL,
+  PRIMARY KEY (vastaaja_id, kokemus_id),
+  FOREIGN KEY (vastaaja_id) REFERENCES vastaajat (id),
+  FOREIGN KEY (kokemus_id) REFERENCES kokemukset (id)
 );
 
 CREATE TABLE kysymykset (
