@@ -56,6 +56,7 @@ decodeCsv csvData = do
 
 main :: IO ()
 main = do
+  hSetBuffering stdout NoBuffering
   args <- getArgs
   when (length args < 1) $ do
     hPutStrLn stderr "Missing database file argument."
