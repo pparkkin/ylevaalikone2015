@@ -4,6 +4,7 @@ module DBLoad where
 
 import Data.Int ( Int64 )
 import Data.List ( intercalate )
+import Data.Maybe ( catMaybes )
 import Data.Text.Encoding ( decodeUtf8 )
 import Data.Vector ( Vector )
 
@@ -46,9 +47,9 @@ collectionTables =
 valueMapping :: [(T.Text, T.Text)]
 valueMapping = [ ("lappeenranta", "Lappeenranta") ]
 
-data FieldMapping = IntColumnIndex Int (T.Text -> Either String Int64)-- field value is an int value from a column, includes conversion function
+data FieldMapping = IntColumnIndex Int (T.Text -> Either T.Text Int64)-- field value is an int value from a column, includes conversion function
                   | TextColumnIndex Int -- field value is a text value from a column
-                  | TableReference Int String -- field value is a reference to another table
+                  | TableReference Int T.Text -- field value is a reference to another table
 
 -- Map fields in `vastaajat` table to CSV columns and other tables
 fieldMapping :: [(String, FieldMapping)]
@@ -90,31 +91,60 @@ fieldMapping = [ ("id", IntColumnIndex 1 textToInt)
                , ("sijoitukset", TableReference 38 "sijoitukset")
                ]
 
+data ManyToMany = ManyToMany T.Text T.Text Int T.Text
+                -- "join_table_name" "join_table_column_name" <csv_column> "value_table"
+
+manyToManyMapping :: [ManyToMany]
+manyToManyMapping = [ ManyToMany "kielitaidot" "kieli_id" 29 "kielet"
+                    , ManyToMany "poliittiset_kokemukset" "kokemus_id" 32 "kokemukset"
+                    ]
+
 loadVastaajatTable :: Vector (Vector B.ByteString) -> Connection -> IO ()
 loadVastaajatTable csvData conn = do
-  putStrLn ("Loading table vastaajat.")
+  putStrLn "Loading table vastaajat."
   V.mapM_ (loadVastaajatRow conn) csvData
+  putStrLn ""
 
 loadVastaajatRow :: Connection -> Vector B.ByteString -> IO ()
 loadVastaajatRow conn row = do
   params <- constructVastaajaParams conn row
   execute conn query params
+  let (SQLInteger vid) = head params
+  mapM_ (loadManyToMany conn row vid) manyToManyMapping
+  putStr "."
   where
     fieldNames = map fst fieldMapping
     fields = intercalate "," fieldNames
     qms = intercalate "," $ take (length fieldNames) $ repeat "?"
     query = Query $ T.pack $ "INSERT INTO vastaajat (" ++ fields ++ ") VALUES (" ++ qms ++ ")"
 
+loadManyToMany :: Connection -> Vector B.ByteString -> Int64 -> ManyToMany -> IO ()
+loadManyToMany conn row vid (ManyToMany jt cn c vt) = do
+  let vals = V.toList $ uniques $ parseMultiple $ textColumnValue c row
+  ids <- queryIds conn vt vals
+  mapM_ (loadManyToManyEntry conn jt cn vid) (zip vals ids)
+
+loadManyToManyEntry :: Connection -> T.Text -> T.Text -> Int64 -> (T.Text, Maybe Int64) -> IO ()
+loadManyToManyEntry conn t c vid (_, (Just cid)) = do
+  let q = Query $ "INSERT INTO " `T.append` t `T.append` " (vastaaja_id, " `T.append` c `T.append` ") values (?, ?)"
+      p = (vid, cid)
+  execute conn q p
+loadManyToManyEntry _ t _ _ (v, Nothing) = do
+  putStrLn $ "Could not find ID for value " ++ (T.unpack v) ++ " for table " ++ (T.unpack t)
+
+queryIds :: Connection -> T.Text -> [T.Text] -> IO [Maybe Int64]
+queryIds conn t = mapM (queryId conn t)
+
 constructVastaajaParams :: Connection -> Vector B.ByteString -> IO [SQLData]
 constructVastaajaParams conn row = mapM ((constructVastaajaParam conn row) . snd) fieldMapping
 
-textToInt :: T.Text -> Either String Int64
+textToInt :: T.Text -> Either T.Text Int64
 textToInt cv =
   case TR.decimal cv of
     Right (i, _) -> Right i
-    Left l -> Left l
+    Left l -> Left (T.pack l)
 
-kyllaEiToInt :: T.Text -> Either String Int64
+kyllaEiToInt :: T.Text -> Either T.Text Int64
 kyllaEiToInt "kyllä" = Right 1
 kyllaEiToInt "ei" = Right 0
 kyllaEiToInt _ = Right (-1)
@@ -134,15 +164,23 @@ constructVastaajaParam _ row (TextColumnIndex n) = do
   return (SQLText cv)
 constructVastaajaParam c row (TableReference n t) = do
   let cv = textColumnValue n row
-      q = Query $ T.pack $ "SELECT id FROM " ++ t ++ " WHERE value LIKE ?"
+  rs <- queryId c t cv
+  case rs of
+    Just i ->
+      return (SQLInteger i)
+    _ -> do
+      putStrLn $ "Unable to find value '" ++ (T.unpack cv) ++ "' in table '" ++ (T.unpack t) ++ "'"
+      return (SQLInteger (-1))
+
+queryId :: Connection -> T.Text -> T.Text -> IO (Maybe Int64)
+queryId c t cv = do
+  let q = Query $ "SELECT id FROM " `T.append` t `T.append` " WHERE value LIKE ?"
   rs <- query c q (Only cv)
   case rs of
     [[i]] ->
-      return (SQLInteger i)
+      return (Just i)
     _ -> do
-      putStrLn $ "Unable to find value '" ++ (T.unpack cv) ++ "' in table '" ++ t ++ "'"
-      putStrLn $ "Found '" ++ (show rs) ++ "'"
-      return (SQLInteger (-1))
+      return Nothing
 
 loadCollectionTable :: String -> Vector (Int, T.Text) -> Connection -> IO ()
 loadCollectionTable n d c = do
@@ -180,4 +218,7 @@ parseVaalipiiriID t = (vpID, vpName)
         Right (i, n) -> (i, T.strip n)
 
 parseMultiple :: T.Text -> Vector T.Text
-parseMultiple = V.fromList . (map T.strip) . (T.splitOn "|")
+parseMultiple = V.fromList . splitValues
+
+splitValues :: T.Text -> [T.Text]
+splitValues = (map T.strip) . (T.splitOn "|")
