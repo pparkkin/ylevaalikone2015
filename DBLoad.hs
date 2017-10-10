@@ -21,8 +21,8 @@ import Database.SQLite.Simple
 -- a better option might be to dump the CSV into a single raw data
 -- table and pull into normalized tables from there using SQL.
 
-loadData :: Vector (Vector B.ByteString) -> Connection -> IO ()
-loadData csvData conn = do
+loadData :: (Vector B.ByteString, Vector (Vector B.ByteString)) -> Connection -> IO ()
+loadData (headers, csvData) conn = do
   putStrLn "Loading data into database."
   mapM_ (\(t, f) -> loadCollectionTable t (f csvData) conn) collectionTables
   loadVastaajatTable csvData conn

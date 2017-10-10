@@ -19,6 +19,7 @@ import System.IO
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.Text as T
+import qualified Data.Vector as V
 
 import Database.SQLite.Simple
 
@@ -49,10 +50,13 @@ downloadData = do
   putStrLn "Downloading data file."
   openURI dataURL
 
-decodeCsv :: B.ByteString -> IO (Either String (Vector (Vector B.ByteString)))
+decodeCsv :: B.ByteString -> IO (Either String (Vector B.ByteString, Vector (Vector B.ByteString)))
 decodeCsv csvData = do
   putStrLn "Decoding CVS data."
-  return (decodeWith decodeOptions HasHeader (BL.fromStrict csvData))
+  let r = decodeWith decodeOptions NoHeader (BL.fromStrict csvData)
+  case r of
+    Left err -> return $ Left err
+    Right rs -> return $ Right (V.head rs, V.tail rs)
 
 main :: IO ()
 main = do
