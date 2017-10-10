@@ -144,17 +144,9 @@ CREATE TABLE vastaaja_vastaukset (
   vastaaja_id integer NOT NULL,
   kysymys_id integer NOT NULL,
   vastaus_id integer NOT NULL,
-  PRIMARY KEY (vastaaja_id, kysymys_id, vastaus_id),
-  FOREIGN KEY (vastaaja_id) REFERENCES vastaajat (id),
-  FOREIGN KEY (kysymys_id) REFERENCES kysymykset (id),
-  FOREIGN KEY (vastaus_id) REFERENCES vastaukset (id)
-);
-
-CREATE TABLE kommentit (
-  vastaaja_id integer NOT NULL,
-  kysymys_id integer NOT NULL,
   kommentti text,
   PRIMARY KEY (vastaaja_id, kysymys_id),
   FOREIGN KEY (vastaaja_id) REFERENCES vastaajat (id),
-  FOREIGN KEY (kysymys_id) REFERENCES kysymykset (id)
+  FOREIGN KEY (kysymys_id) REFERENCES kysymykset (id),
+  FOREIGN KEY (vastaus_id) REFERENCES vastaukset (id)
 );
