@@ -137,7 +137,7 @@ CREATE TABLE kysymykset (
 
 CREATE TABLE vastaukset (
   id integer PRIMARY KEY,
-  vastaus text NOT NULL
+  value text NOT NULL
 );
 
 CREATE TABLE vastaaja_vastaukset (

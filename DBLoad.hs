@@ -127,10 +127,17 @@ uniques = V.fromList . (V.foldr (\r a -> if elem r a then a else r:a) [])
 textColumn :: Int -> Vector (Vector B.ByteString) -> Vector T.Text
 textColumn n = V.map (textColumnValue n)
 
+textColumns :: [Int] -> Vector (Vector B.ByteString) -> Vector T.Text
+textColumns [] = const V.empty
+textColumns ns = foldr1 (concatColumns) (map textColumn ns)
+
 multiColumn :: Int -> Vector (Vector B.ByteString) -> Vector T.Text
 multiColumn n = (V.concatMap parseMultiple) . (textColumn n)
 
-concatColumns :: (Vector (Vector B.ByteString) -> Vector T.Text) -> (Vector (Vector B.ByteString) -> Vector T.Text) -> Vector (Vector B.ByteString) -> Vector T.Text
+concatColumns :: (Vector (Vector B.ByteString) -> Vector T.Text)
+              -> (Vector (Vector B.ByteString) -> Vector T.Text)
+              -> Vector (Vector B.ByteString)
+              -> Vector T.Text
 concatColumns one two v = mappend (one v) (two v)
 
 textColumnValue :: Int -> Vector B.ByteString -> T.Text
@@ -188,7 +195,11 @@ collectionTables =
   , ("ulkopuolisen_rahoituksen_lahteet", V.indexed . uniques . (textColumn 35))
   , ("vuositulot", V.indexed . uniques . (textColumn 37))
   , ("sijoitukset", V.indexed . uniques . (textColumn 38))
+  , ("vastaukset", V.indexed . uniques . (textColumns vastausColumns))
   ]
+
+vastausColumns :: [Int]
+vastausColumns = [39,41..257]
 
 -- Used to fix some spelling mistakes
 valueMapping :: [(T.Text, T.Text)]
