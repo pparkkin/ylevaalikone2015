@@ -27,40 +27,63 @@ loadData :: (Vector B.ByteString, Vector (Vector B.ByteString)) -> Connection ->
 loadData (headers, csvData) conn = do
   putStrLn "Loading data into database."
   mapM_ (\(t, f) -> loadCollectionTable t (f csvData) conn) collectionTables
-  let kysymykset = V.drop 39 headers
-  loadKysymyksetTable conn kysymykset
-  loadVastaajatTable csvData conn
+  ks <- loadKysymyksetTable conn headers
+  loadVastaajatTable conn ks csvData
+  putStrLn "All done."
 
-loadKysymyksetTable :: Connection -> Vector B.ByteString -> IO ()
-loadKysymyksetTable conn ks = do
-  let cs = V.toList $ V.map (decodeUtf8) ks
-      qs = map (parseKysymys . head) $ groupBy ((==) `on` (T.take 3)) cs
+loadKysymyksetTable :: Connection -> Vector B.ByteString -> IO [(Int, (Int, T.Text))]
+loadKysymyksetTable conn headers = do
+  let ks = parseKysymykset headers
   putStrLn "Loading table kysymykset."
-  mapM_ (loadKysymyksetRow conn) qs
+  mapM_ (loadKysymyksetRow conn) ks
+  return ks
 
-loadKysymyksetRow :: Connection -> (Int, T.Text) -> IO ()
-loadKysymyksetRow conn vs = do
+loadKysymyksetRow :: Connection -> (Int, (Int, T.Text)) -> IO ()
+loadKysymyksetRow conn (i, (_, k)) = do
   let q = Query $ "INSERT INTO kysymykset (id, kysymys) VALUES (?, ?)"
-  execute conn q vs
+  execute conn q (i, k)
 
-loadVastaajatTable :: Vector (Vector B.ByteString) -> Connection -> IO ()
-loadVastaajatTable csvData conn = do
+loadVastaajatTable :: Connection -> [(Int, (Int, T.Text))] -> Vector (Vector B.ByteString) -> IO ()
+loadVastaajatTable conn ks csvData = do
   putStrLn "Loading table vastaajat."
-  V.mapM_ (loadVastaajatRow conn) csvData
+  V.mapM_ (loadVastaajatRow conn ks) csvData
   putStrLn ""
 
-loadVastaajatRow :: Connection -> Vector B.ByteString -> IO ()
-loadVastaajatRow conn row = do
+loadVastaajatRow :: Connection -> [(Int, (Int, T.Text))] -> Vector B.ByteString -> IO ()
+loadVastaajatRow conn ks row = do
   params <- constructVastaajaParams conn row
   execute conn query params
   let (SQLInteger vid) = head params
   mapM_ (loadManyToMany conn row vid) manyToManyMapping
+  loadVastaajatVastaukset conn ks vid row
   putStr "."
   where
     fieldNames = map fst fieldMapping
     fields = intercalate "," fieldNames
     qms = intercalate "," $ take (length fieldNames) $ repeat "?"
     query = Query $ T.pack $ "INSERT INTO vastaajat (" ++ fields ++ ") VALUES (" ++ qms ++ ")"
+
+loadVastaajatVastaukset :: Connection -> [(Int, (Int, T.Text))] -> Int64 -> Vector B.ByteString -> IO ()
+loadVastaajatVastaukset conn ks vid row =
+  mapM_ (loadVastaajatVastaus conn vid row) ks
+
+loadVastaajatVastaus :: Connection -> Int64 -> Vector B.ByteString -> (Int, (Int, T.Text)) -> IO ()
+loadVastaajatVastaus conn vid row (ki, (kc, _)) = do
+  let v = textColumnValue kc row
+      k = textColumnValue (kc + 1) row
+  vi <- queryId conn "vastaukset" v
+  case vi of
+    Just i ->
+      execute conn q (vid, ki, i)
+    Nothing ->
+      putStrLn $ "Could not find value " ++ (T.unpack v) ++ " in table vastaukset"
+  where
+    q = Query $ "INSERT INTO vastaaja_vastaukset (vastaaja_id, kysymys_id, vastaus_id) VALUES (?, ?, ?)"
+
+pairs :: [a] -> [(a, a)]
+pairs [] = []
+pairs [x] = []
+pairs (x:y:xs) = (x, y) : pairs xs
 
 loadManyToMany :: Connection -> Vector B.ByteString -> Int64 -> ManyToMany -> IO ()
 loadManyToMany conn row vid (ManyToMany jt cn c vt) = do
@@ -155,12 +178,26 @@ parseVaalipiiriID t = (vpID, vpName)
       case TR.decimal t of
         Right (i, n) -> (i, T.strip n)
 
-parseKysymys :: T.Text -> (Int, T.Text)
-parseKysymys t = (i, k)
+parseKysymys :: T.Text -> Either String (Int, T.Text)
+parseKysymys t =
+  case TR.decimal t of
+    Right (i, r) -> Right (i, T.drop 1 r)
+    Left e -> Left e
+
+--                 headers             ->   id  column kysymys
+parseKysymykset :: Vector B.ByteString -> [(Int, (Int, T.Text))]
+parseKysymykset hs = V.ifoldl selectKysymys [] hs
   where
-    (i, k) =
-      case TR.decimal t of
-        Right (i, r) -> (i, T.drop 1 r)
+    selectKysymys :: [(Int, (Int, T.Text))] -> Int -> B.ByteString -> [(Int, (Int, T.Text))]
+    selectKysymys ks c b =
+      case parseKysymys (decodeUtf8 b) of
+        Right (i, k) -> insertKysymys ks i c k
+        Left _ -> ks
+    insertKysymys :: [(Int, (Int, T.Text))] -> Int -> Int -> T.Text -> [(Int, (Int, T.Text))]
+    insertKysymys ks i c k =
+      case lookup i ks of
+        Just _ -> ks
+        Nothing -> (i, (c, k)) : ks
 
 parseMultiple :: T.Text -> Vector T.Text
 parseMultiple = V.fromList . splitValues
