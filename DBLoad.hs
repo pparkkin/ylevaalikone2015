@@ -52,15 +52,13 @@ loadData' (headers, csvData) conn = do
 
 loadKysymyksetTable :: Connection -> Vector B.ByteString -> StateT IdCaches IO [(Int, (Int, T.Text))]
 loadKysymyksetTable conn headers = do
-  let ks = parseKysymykset headers
   lift $ putStrLn "Loading table kysymykset."
-  mapM_ (loadKysymyksetRow conn) ks
+  lift $ executeMany conn q vs
   return ks
-
-loadKysymyksetRow :: Connection -> (Int, (Int, T.Text)) -> StateT IdCaches IO ()
-loadKysymyksetRow conn (i, (_, k)) = do
-  let q = Query $ "INSERT INTO kysymykset (id, kysymys) VALUES (?, ?)"
-  lift $ execute conn q (i, k)
+  where
+    ks = parseKysymykset headers
+    vs = map (\(i, (_, k)) -> (i, k)) ks
+    q = "INSERT INTO kysymykset (id, kysymys) VALUES (?, ?)"
 
 loadVastaajatTable :: Connection -> [(Int, (Int, T.Text))] -> Vector (Vector B.ByteString) -> StateT IdCaches IO ()
 loadVastaajatTable conn ks csvData = do
@@ -148,15 +146,10 @@ constructVastaajaParam c row (TableReference n t) = do
 loadCollectionTable :: Connection -> String -> Vector (Int, T.Text) -> StateT IdCaches IO ()
 loadCollectionTable c n d = do
   lift $ putStrLn ("Loading table " ++ n ++ ".")
-  V.mapM_ (loadCollectionTableRow c n) d
-
-loadCollectionTableRow :: Connection -> String -> (Int, T.Text) -> StateT IdCaches IO ()
-loadCollectionTableRow c n r = do
-  -- cache id
-  S.modify (cacheId (T.pack n) (swap r))
-  lift $ execute c q r
+  lift $ executeMany c q vs
   where
     q = Query $ T.pack $ "INSERT INTO " ++ n ++ " (id, value) VALUES (?, ?)"
+    vs = V.toList d
 
 textToInt :: T.Text -> Either T.Text Int
 textToInt cv =
