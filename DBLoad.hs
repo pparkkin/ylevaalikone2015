@@ -2,16 +2,21 @@
 
 module DBLoad where
 
+import Control.Monad.Trans.State ( StateT, evalStateT )
+import Control.Monad.Trans ( lift )
 import Data.Function ( on )
-import Data.Int ( Int64 )
 import Data.List ( intercalate, groupBy )
+import Data.Map.Strict ( Map )
 import Data.Maybe ( catMaybes )
 import Data.Text.Encoding ( decodeUtf8 )
+import Data.Tuple ( swap )
 import Data.Vector ( Vector )
 
+import qualified Control.Monad.Trans.State as S
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Char8 as C
 import qualified Data.Text as T
+import qualified Data.Map.Strict as M
 import qualified Data.Text.Read as TR
 import qualified Data.Vector as V
 
@@ -23,60 +28,75 @@ import Database.SQLite.Simple
 -- table and pull into normalized tables from there using SQL. Problem
 -- is the large number of columns from the questions.
 
+type IdCache = Map T.Text Int
+type IdCaches = Map T.Text IdCache
+
+cacheId :: T.Text -> (T.Text, Int) -> IdCaches -> IdCaches
+cacheId t (v, i) = M.alter alterTable t
+  where
+    alterTable (Just m) = Just $ M.alter alterId v m
+    alterTable Nothing = Just $ M.singleton v i
+    alterId _ = Just i
+
 loadData :: (Vector B.ByteString, Vector (Vector B.ByteString)) -> Connection -> IO ()
-loadData (headers, csvData) conn = do
-  putStrLn "Loading data into database."
-  mapM_ (\(t, f) -> loadCollectionTable t (f csvData) conn) collectionTables
+loadData durtur conn = do
+  evalStateT (loadData' durtur conn) M.empty
+
+loadData' :: (Vector B.ByteString, Vector (Vector B.ByteString)) -> Connection -> StateT IdCaches IO ()
+loadData' (headers, csvData) conn = do
+  lift $ putStrLn "Loading data into database."
+  mapM_ (\(t, f) -> loadCollectionTable conn t (f csvData)) collectionTables
   ks <- loadKysymyksetTable conn headers
   loadVastaajatTable conn ks csvData
-  putStrLn "All done."
+  lift $ putStrLn "All done."
 
-loadKysymyksetTable :: Connection -> Vector B.ByteString -> IO [(Int, (Int, T.Text))]
+loadKysymyksetTable :: Connection -> Vector B.ByteString -> StateT IdCaches IO [(Int, (Int, T.Text))]
 loadKysymyksetTable conn headers = do
   let ks = parseKysymykset headers
-  putStrLn "Loading table kysymykset."
+  lift $ putStrLn "Loading table kysymykset."
   mapM_ (loadKysymyksetRow conn) ks
   return ks
 
-loadKysymyksetRow :: Connection -> (Int, (Int, T.Text)) -> IO ()
+loadKysymyksetRow :: Connection -> (Int, (Int, T.Text)) -> StateT IdCaches IO ()
 loadKysymyksetRow conn (i, (_, k)) = do
   let q = Query $ "INSERT INTO kysymykset (id, kysymys) VALUES (?, ?)"
-  execute conn q (i, k)
+  lift $ execute conn q (i, k)
 
-loadVastaajatTable :: Connection -> [(Int, (Int, T.Text))] -> Vector (Vector B.ByteString) -> IO ()
+loadVastaajatTable :: Connection -> [(Int, (Int, T.Text))] -> Vector (Vector B.ByteString) -> StateT IdCaches IO ()
 loadVastaajatTable conn ks csvData = do
-  putStrLn "Loading table vastaajat."
+  lift $ putStrLn "Loading table vastaajat."
   V.mapM_ (loadVastaajatRow conn ks) csvData
-  putStrLn ""
+  lift $ putStrLn ""
 
-loadVastaajatRow :: Connection -> [(Int, (Int, T.Text))] -> Vector B.ByteString -> IO ()
+loadVastaajatRow :: Connection -> [(Int, (Int, T.Text))] -> Vector B.ByteString -> StateT IdCaches IO ()
 loadVastaajatRow conn ks row = do
   params <- constructVastaajaParams conn row
-  execute conn query params
-  let (SQLInteger vid) = head params
+  lift $ execute conn query params
+  let (SQLInteger vid') = head params
+      vid = fromIntegral vid'
   mapM_ (loadManyToMany conn row vid) manyToManyMapping
   loadVastaajatVastaukset conn ks vid row
-  putStr "."
+  lift $ putStr "."
   where
     fieldNames = map fst fieldMapping
     fields = intercalate "," fieldNames
     qms = intercalate "," $ take (length fieldNames) $ repeat "?"
     query = Query $ T.pack $ "INSERT INTO vastaajat (" ++ fields ++ ") VALUES (" ++ qms ++ ")"
 
-loadVastaajatVastaukset :: Connection -> [(Int, (Int, T.Text))] -> Int64 -> Vector B.ByteString -> IO ()
+loadVastaajatVastaukset :: Connection -> [(Int, (Int, T.Text))] -> Int -> Vector B.ByteString -> StateT IdCaches IO ()
 loadVastaajatVastaukset conn ks vid row =
   mapM_ (loadVastaajatVastaus conn vid row) ks
 
-loadVastaajatVastaus :: Connection -> Int64 -> Vector B.ByteString -> (Int, (Int, T.Text)) -> IO ()
+loadVastaajatVastaus :: Connection -> Int -> Vector B.ByteString -> (Int, (Int, T.Text)) -> StateT IdCaches IO ()
 loadVastaajatVastaus conn vid row (ki, (kc, _)) = do
   let v = textColumnValue kc row
       k = textColumnValue (kc + 1) row
   vi <- queryId conn "vastaukset" v
   case vi of
     Just i ->
-      execute conn q (vid, ki, i)
+      lift $ execute conn q (vid, ki, i)
     Nothing ->
-      putStrLn $ "Could not find value " ++ (T.unpack v) ++ " in table vastaukset"
+      lift $ putStrLn $ "Could not find value " ++ (T.unpack v) ++ " in table vastaukset"
   where
     q = Query $ "INSERT INTO vastaaja_vastaukset (vastaaja_id, kysymys_id, vastaus_id) VALUES (?, ?, ?)"
 
@@ -85,13 +105,13 @@ pairs [] = []
 pairs [x] = []
 pairs (x:y:xs) = (x, y) : pairs xs
 
-loadManyToMany :: Connection -> Vector B.ByteString -> Int64 -> ManyToMany -> IO ()
+loadManyToMany :: Connection -> Vector B.ByteString -> Int -> ManyToMany -> StateT IdCaches IO ()
 loadManyToMany conn row vid (ManyToMany jt cn c vt) = do
   let vals = V.toList $ uniques $ parseMultiple $ textColumnValue c row
   ids <- queryIds conn vt vals
-  mapM_ (loadManyToManyEntry conn jt cn vid) (zip vals ids)
+  lift $ mapM_ (loadManyToManyEntry conn jt cn vid) (zip vals ids)
 
-loadManyToManyEntry :: Connection -> T.Text -> T.Text -> Int64 -> (T.Text, Maybe Int64) -> IO ()
+loadManyToManyEntry :: Connection -> T.Text -> T.Text -> Int -> (T.Text, Maybe Int) -> IO ()
 loadManyToManyEntry conn t c vid (_, (Just cid)) = do
   let q = Query $ "INSERT INTO " `T.append` t `T.append` " (vastaaja_id, " `T.append` c `T.append` ") values (?, ?)"
       p = (vid, cid)
@@ -99,29 +119,18 @@ loadManyToManyEntry conn t c vid (_, (Just cid)) = do
 loadManyToManyEntry _ t _ _ (v, Nothing) = do
   putStrLn $ "Could not find ID for value " ++ (T.unpack v) ++ " for table " ++ (T.unpack t)
 
-constructVastaajaParams :: Connection -> Vector B.ByteString -> IO [SQLData]
+constructVastaajaParams :: Connection -> Vector B.ByteString -> StateT IdCaches IO [SQLData]
 constructVastaajaParams conn row = mapM ((constructVastaajaParam conn row) . snd) fieldMapping
 
-textToInt :: T.Text -> Either T.Text Int64
-textToInt cv =
-  case TR.decimal cv of
-    Right (i, _) -> Right i
-    Left l -> Left (T.pack l)
-
-kyllaEiToInt :: T.Text -> Either T.Text Int64
-kyllaEiToInt "kyllä" = Right 1
-kyllaEiToInt "ei" = Right 0
-kyllaEiToInt _ = Right (-1)
-
-constructVastaajaParam :: Connection -> Vector B.ByteString -> FieldMapping -> IO SQLData
+constructVastaajaParam :: Connection -> Vector B.ByteString -> FieldMapping -> StateT IdCaches IO SQLData
 constructVastaajaParam _ row (IntColumnIndex n f) = do
   let cv = textColumnValue n row
       iv = f cv
   case iv of
     Right i ->
-      return (SQLInteger i)
+      return (SQLInteger (fromIntegral i))
     Left err -> do
-      putStrLn $ "Unable to parse integer value '" ++ (T.unpack cv) ++ "' from column '" ++ (show n) ++ "'"
+      lift $ putStrLn $ "Unable to parse integer value '" ++ (T.unpack cv) ++ "' from column '" ++ (show n) ++ "'"
       return (SQLInteger (-1))
 constructVastaajaParam _ row (TextColumnIndex n) = do
   let cv = textColumnValue n row
@@ -131,18 +140,34 @@ constructVastaajaParam c row (TableReference n t) = do
   rs <- queryId c t cv
   case rs of
     Just i ->
-      return (SQLInteger i)
+      return (SQLInteger (fromIntegral i))
     _ -> do
-      putStrLn $ "Unable to find value '" ++ (T.unpack cv) ++ "' in table '" ++ (T.unpack t) ++ "'"
+      lift $ putStrLn $ "Unable to find value '" ++ (T.unpack cv) ++ "' in table '" ++ (T.unpack t) ++ "'"
       return (SQLInteger (-1))
 
-loadCollectionTable :: String -> Vector (Int, T.Text) -> Connection -> IO ()
-loadCollectionTable n d c = do
-  putStrLn ("Loading table " ++ n ++ ".")
-  V.mapM_ (\r -> execute c q (vs r)) d
+loadCollectionTable :: Connection -> String -> Vector (Int, T.Text) -> StateT IdCaches IO ()
+loadCollectionTable c n d = do
+  lift $ putStrLn ("Loading table " ++ n ++ ".")
+  V.mapM_ (loadCollectionTableRow c n) d
+
+loadCollectionTableRow :: Connection -> String -> (Int, T.Text) -> StateT IdCaches IO ()
+loadCollectionTableRow c n r = do
+  -- cache id
+  S.modify (cacheId (T.pack n) (swap r))
+  lift $ execute c q r
   where
     q = Query $ T.pack $ "INSERT INTO " ++ n ++ " (id, value) VALUES (?, ?)"
-    vs r = ((fst r :: Int), (snd r :: T.Text))
+
+textToInt :: T.Text -> Either T.Text Int
+textToInt cv =
+  case TR.decimal cv of
+    Right (i, _) -> Right i
+    Left l -> Left (T.pack l)
+
+kyllaEiToInt :: T.Text -> Either T.Text Int
+kyllaEiToInt "kyllä" = Right 1
+kyllaEiToInt "ei" = Right 0
+kyllaEiToInt _ = Right (-1)
 
 uniques :: Eq a => Vector a -> Vector a
 uniques = V.fromList . (V.foldr (\r a -> if elem r a then a else r:a) [])
@@ -205,16 +230,15 @@ parseMultiple = V.fromList . splitValues
 splitValues :: T.Text -> [T.Text]
 splitValues = (map T.strip) . (T.splitOn "|")
 
-queryIds :: Connection -> T.Text -> [T.Text] -> IO [Maybe Int64]
+queryIds :: Connection -> T.Text -> [T.Text] -> StateT IdCaches IO [Maybe Int]
 queryIds conn t = mapM (queryId conn t)
 
-queryId :: Connection -> T.Text -> T.Text -> IO (Maybe Int64)
+queryId :: Connection -> T.Text -> T.Text -> StateT IdCaches IO (Maybe Int)
 queryId c t cv = do
-  let q = Query $ "SELECT id FROM " `T.append` t `T.append` " WHERE value LIKE ?"
-  rs <- query c q (Only cv)
-  case rs of
-    [[i]] ->
-      return (Just i)
+  c <- S.get
+  case M.lookup t c of
+    Just m ->
+      return (M.lookup cv m)
     _ -> do
       return Nothing
 
@@ -242,7 +266,7 @@ vastausColumns = [39,41..257]
 valueMapping :: [(T.Text, T.Text)]
 valueMapping = [ ("lappeenranta", "Lappeenranta") ]
 
-data FieldMapping = IntColumnIndex Int (T.Text -> Either T.Text Int64)-- field value is an int value from a column, includes conversion function
+data FieldMapping = IntColumnIndex Int (T.Text -> Either T.Text Int)-- field value is an int value from a column, includes conversion function
                   | TextColumnIndex Int -- field value is a text value from a column
                   | TableReference Int T.Text -- field value is a reference to another table
 

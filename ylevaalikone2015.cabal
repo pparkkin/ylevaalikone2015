@@ -21,8 +21,11 @@ executable dbcreate
   build-depends:       base
                      , bytestring
                      , cassava
+                     , containers
                      , directory
                      , download
+                     , mtl
                      , sqlite-simple
                      , text
+                     , transformers
                      , vector
