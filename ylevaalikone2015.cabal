@@ -16,6 +16,7 @@ library
 
 executable dbcreate
   default-language:    Haskell2010
+  -- ghc-options:         -O2
   main-is:             DBCreate.hs
   other-modules:       DBLoad
   build-depends:       base

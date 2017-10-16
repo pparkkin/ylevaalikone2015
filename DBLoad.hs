@@ -68,18 +68,18 @@ loadVastaajatTable conn ks csvData = do
 
 loadVastaajatRow :: Connection -> [(Int, (Int, T.Text))] -> Vector B.ByteString -> StateT IdCaches IO ()
 loadVastaajatRow conn ks row = do
-  params <- constructVastaajaParams conn row
-  lift $ execute conn query params
-  let (SQLInteger vid') = head params
+  params <- sequence $ constructVastaajaParams conn row fieldMapping
+  let fns = map fst params
+      ps = map snd params
+      fs = intercalate "," fns
+      qms = intercalate "," $ take (length fns) $ repeat "?"
+      q = Query $ T.pack $ "INSERT INTO vastaajat (" ++ fs ++ ") VALUES (" ++ qms ++ ")"
+  lift $ execute conn q ps
+  let ("id", (SQLInteger vid')) = head params
       vid = fromIntegral vid'
   mapM_ (loadManyToMany conn row vid) manyToManyMapping
   loadVastaajatVastaukset conn ks vid row
   lift $ putStr "."
-  where
-    fieldNames = map fst fieldMapping
-    fields = intercalate "," fieldNames
-    qms = intercalate "," $ take (length fieldNames) $ repeat "?"
-    query = Query $ T.pack $ "INSERT INTO vastaajat (" ++ fields ++ ") VALUES (" ++ qms ++ ")"
 
 loadVastaajatVastaukset :: Connection -> [(Int, (Int, T.Text))] -> Int -> Vector B.ByteString -> StateT IdCaches IO ()
 loadVastaajatVastaukset conn ks vid row =
@@ -117,12 +117,15 @@ loadManyToManyEntry conn t c vid (_, (Just cid)) = do
 loadManyToManyEntry _ t _ _ (v, Nothing) = do
   putStrLn $ "Could not find ID for value " ++ (T.unpack v) ++ " for table " ++ (T.unpack t)
 
-constructVastaajaParams :: Connection -> Vector B.ByteString -> StateT IdCaches IO [SQLData]
-constructVastaajaParams conn row = mapM ((constructVastaajaParam conn row) . snd) fieldMapping
+constructVastaajaParams :: Connection -> Vector B.ByteString -> [Maybe (String, FieldMapping)] -> [StateT IdCaches IO (String, SQLData)]
+constructVastaajaParams conn row fms = foldr f [] (zip (V.toList row) fms)
+  where
+    f (_, Nothing) ps = ps
+    f (b, Just fm) ps = fmap (\d -> (fst fm, d)) (constructVastaajaParam conn b (snd fm)) : ps
 
-constructVastaajaParam :: Connection -> Vector B.ByteString -> FieldMapping -> StateT IdCaches IO SQLData
-constructVastaajaParam _ row (IntColumnIndex n f) = do
-  let cv = textColumnValue n row
+constructVastaajaParam :: Connection -> B.ByteString -> FieldMapping -> StateT IdCaches IO SQLData
+constructVastaajaParam _ b (IntColumnIndex n f) = do
+  let cv = textValue b
       iv = f cv
   case iv of
     Right i ->
@@ -130,11 +133,11 @@ constructVastaajaParam _ row (IntColumnIndex n f) = do
     Left err -> do
       lift $ putStrLn $ "Unable to parse integer value '" ++ (T.unpack cv) ++ "' from column '" ++ (show n) ++ "'"
       return (SQLInteger (-1))
-constructVastaajaParam _ row (TextColumnIndex n) = do
-  let cv = textColumnValue n row
+constructVastaajaParam _ b (TextColumnIndex n) = do
+  let cv = textValue b
   return (SQLText cv)
-constructVastaajaParam c row (TableReference n t) = do
-  let cv = textColumnValue n row
+constructVastaajaParam c b (TableReference n t) = do
+  let cv = textValue b
   rs <- queryId c t cv
   case rs of
     Just i ->
@@ -147,6 +150,8 @@ loadCollectionTable :: Connection -> String -> Vector (Int, T.Text) -> StateT Id
 loadCollectionTable c n d = do
   lift $ putStrLn ("Loading table " ++ n ++ ".")
   lift $ executeMany c q vs
+  s <- S.get
+  S.put $ foldr (\v m -> cacheId (T.pack n) (swap v) m) s vs
   where
     q = Query $ T.pack $ "INSERT INTO " ++ n ++ " (id, value) VALUES (?, ?)"
     vs = V.toList d
@@ -182,8 +187,11 @@ concatColumns :: (Vector (Vector B.ByteString) -> Vector T.Text)
 concatColumns one two v = mappend (one v) (two v)
 
 textColumnValue :: Int -> Vector B.ByteString -> T.Text
-textColumnValue n vector =
-  let cv = T.strip $ decodeUtf8 $ vector V.! n
+textColumnValue n vector = textValue (vector V.! n)
+
+textValue :: B.ByteString -> T.Text
+textValue b =
+  let cv = T.strip $ decodeUtf8 b
   -- Use corrected value from valueMapping if available
   in case lookup cv valueMapping of
     Just v -> v
@@ -264,44 +272,47 @@ data FieldMapping = IntColumnIndex Int (T.Text -> Either T.Text Int)-- field val
                   | TableReference Int T.Text -- field value is a reference to another table
 
 -- Map fields in `vastaajat` table to CSV columns and other tables
-fieldMapping :: [(String, FieldMapping)]
-fieldMapping = [ ("id", IntColumnIndex 1 textToInt)
-               , ("sukunimi", TextColumnIndex 2)
-               , ("etunimi", TextColumnIndex 3)
-               , ("puolue", TableReference 4 "puolueet")
-               , ("ika", IntColumnIndex 5 textToInt)
-               , ("sukupuoli", TableReference 6 "sukupuolet")
-               , ("kansanedustaja", IntColumnIndex 7 textToInt)
-               , ("vastattu", TextColumnIndex 8)
-               , ("valittu", IntColumnIndex 9 textToInt)
-               , ("sitoutumaton", IntColumnIndex 10 textToInt)
-               , ("kotikunta", TableReference 11 "kotikunnat")
-               , ("ehdokasnumero", IntColumnIndex 12 textToInt)
-               , ("miksi_eduskuntaan", TextColumnIndex 13)
-               , ("mita_edistaa", TextColumnIndex 14)
-               , ("vaalilupaus1", TextColumnIndex 15)
-               , ("vaalilupaus2", TextColumnIndex 16)
-               , ("vaalilupaus3", TextColumnIndex 17)
-               , ("aidinkieli", TableReference 18 "kielet")
-               , ("kotisivu", TextColumnIndex 19)
-               , ("facebook", TextColumnIndex 20)
-               , ("twitter", TextColumnIndex 21)
-               , ("lapsia", IntColumnIndex 22 kyllaEiToInt)
-               , ("perhe", TextColumnIndex 23)
-               , ("vapaa_ajalla", TextColumnIndex 24)
-               , ("tyonantaja", TextColumnIndex 25)
-               , ("ammattiasema", TextColumnIndex 26)
-               , ("ammatti", TextColumnIndex 27)
-               , ("koulutus", TableReference 28 "koulutukset")
-               , ("uskonnollinen_yhteiso", TableReference 30 "uskonnolliset_yhteisot")
-               , ("puolueen_jasen", IntColumnIndex 31 kyllaEiToInt)
-               , ("vaalibudjetti", TableReference 33 "vaalibudjetit")
-               , ("ulkopuolisen_rahoituksen_osuus", TableReference 34 "ulkopuolisen_rahoituksen_osuudet")
-               , ("ulkopuolisen_rahoituken_lahde", TableReference 35 "ulkopuolisen_rahoituksen_lahteet")
-               , ("sidonnaisuudet", TextColumnIndex 36)
-               , ("vuositulot", TableReference 37 "vuositulot")
-               , ("sijoitukset", TableReference 38 "sijoitukset")
-               ]
+fieldMapping :: [Maybe (String, FieldMapping)]
+fieldMapping = [ Nothing
+               , Just ("id", IntColumnIndex 1 textToInt)
+               , Just ("sukunimi", TextColumnIndex 2)
+               , Just ("etunimi", TextColumnIndex 3)
+               , Just ("puolue", TableReference 4 "puolueet")
+               , Just ("ika", IntColumnIndex 5 textToInt)
+               , Just ("sukupuoli", TableReference 6 "sukupuolet")
+               , Just ("kansanedustaja", IntColumnIndex 7 textToInt)
+               , Just ("vastattu", TextColumnIndex 8)
+               , Just ("valittu", IntColumnIndex 9 textToInt)
+               , Just ("sitoutumaton", IntColumnIndex 10 textToInt)
+               , Just ("kotikunta", TableReference 11 "kotikunnat")
+               , Just ("ehdokasnumero", IntColumnIndex 12 textToInt)
+               , Just ("miksi_eduskuntaan", TextColumnIndex 13)
+               , Just ("mita_edistaa", TextColumnIndex 14)
+               , Just ("vaalilupaus1", TextColumnIndex 15)
+               , Just ("vaalilupaus2", TextColumnIndex 16)
+               , Just ("vaalilupaus3", TextColumnIndex 17)
+               , Just ("aidinkieli", TableReference 18 "kielet")
+               , Just ("kotisivu", TextColumnIndex 19)
+               , Just ("facebook", TextColumnIndex 20)
+               , Just ("twitter", TextColumnIndex 21)
+               , Just ("lapsia", IntColumnIndex 22 kyllaEiToInt)
+               , Just ("perhe", TextColumnIndex 23)
+               , Just ("vapaa_ajalla", TextColumnIndex 24)
+               , Just ("tyonantaja", TextColumnIndex 25)
+               , Just ("ammattiasema", TextColumnIndex 26)
+               , Just ("ammatti", TextColumnIndex 27)
+               , Just ("koulutus", TableReference 28 "koulutukset")
+               , Nothing -- many_to_many
+               , Just ("uskonnollinen_yhteiso", TableReference 30 "uskonnolliset_yhteisot")
+               , Just ("puolueen_jasen", IntColumnIndex 31 kyllaEiToInt)
+               , Nothing -- many_to_many
+               , Just ("vaalibudjetti", TableReference 33 "vaalibudjetit")
+               , Just ("ulkopuolisen_rahoituksen_osuus", TableReference 34 "ulkopuolisen_rahoituksen_osuudet")
+               , Just ("ulkopuolisen_rahoituken_lahde", TableReference 35 "ulkopuolisen_rahoituksen_lahteet")
+               , Just ("sidonnaisuudet", TextColumnIndex 36)
+               , Just ("vuositulot", TableReference 37 "vuositulot")
+               , Just ("sijoitukset", TableReference 38 "sijoitukset")
+               ] ++ repeat Nothing
 
 data ManyToMany = ManyToMany T.Text T.Text Int T.Text
                 -- "join_table_name" "join_table_column_name" <csv_column> "value_table"
