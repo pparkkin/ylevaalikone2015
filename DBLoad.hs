@@ -63,40 +63,41 @@ loadKysymyksetTable conn headers = do
 loadVastaajatTable :: Connection -> [(Int, (Int, T.Text))] -> Vector (Vector B.ByteString) -> StateT IdCaches IO ()
 loadVastaajatTable conn ks csvData = do
   lift $ putStrLn "Loading table vastaajat."
-  V.mapM_ (loadVastaajatRow conn ks) csvData
+  let fs = intercalate "," fieldNames
+      qms = intercalate "," $ map (const "?") fieldNames
+      q = Query $ T.pack $ "INSERT INTO vastaajat (" ++ fs ++ ") VALUES (" ++ qms ++ ")"
+  ps <- V.mapM (loadVastaajatRow conn ks) csvData
   lift $ putStrLn ""
+  lift $ executeMany conn q (V.toList ps)
 
-loadVastaajatRow :: Connection -> [(Int, (Int, T.Text))] -> Vector B.ByteString -> StateT IdCaches IO ()
+loadVastaajatRow :: Connection -> [(Int, (Int, T.Text))] -> Vector B.ByteString -> StateT IdCaches IO [SQLData]
 loadVastaajatRow conn ks row = do
   params <- sequence $ constructVastaajaParams conn row fieldMapping
-  let fns = map fst params
-      ps = map snd params
-      fs = intercalate "," fns
-      qms = intercalate "," $ take (length fns) $ repeat "?"
-      q = Query $ T.pack $ "INSERT INTO vastaajat (" ++ fs ++ ") VALUES (" ++ qms ++ ")"
-  lift $ execute conn q ps
   let ("id", (SQLInteger vid')) = head params
       vid = fromIntegral vid'
   mapM_ (loadManyToMany conn row vid) manyToManyMapping
   loadVastaajatVastaukset conn ks vid row
   lift $ putStr "."
+  return $ map snd params
 
 loadVastaajatVastaukset :: Connection -> [(Int, (Int, T.Text))] -> Int -> Vector B.ByteString -> StateT IdCaches IO ()
-loadVastaajatVastaukset conn ks vid row =
-  mapM_ (loadVastaajatVastaus conn vid row) ks
+loadVastaajatVastaukset conn ks vid row = do
+  vs <- mapM (loadVastaajatVastaus conn vid row) ks
+  lift $ executeMany conn q (catMaybes vs) -- Why is this so slow?
+  where
+    q = Query $ "INSERT INTO vastaaja_vastaukset (vastaaja_id, kysymys_id, vastaus_id) VALUES (?, ?, ?)"
 
-loadVastaajatVastaus :: Connection -> Int -> Vector B.ByteString -> (Int, (Int, T.Text)) -> StateT IdCaches IO ()
+loadVastaajatVastaus :: Connection -> Int -> Vector B.ByteString -> (Int, (Int, T.Text)) -> StateT IdCaches IO (Maybe (Int, Int, Int))
 loadVastaajatVastaus conn vid row (ki, (kc, _)) = do
   let v = textColumnValue kc row
       k = textColumnValue (kc + 1) row
   vi <- queryId conn "vastaukset" v
   case vi of
     Just i ->
-      lift $ execute conn q (vid, ki, i)
-    Nothing ->
+      return $ Just (vid, ki, i)
+    Nothing -> do
       lift $ putStrLn $ "Could not find value " ++ (T.unpack v) ++ " in table vastaukset"
-  where
-    q = Query $ "INSERT INTO vastaaja_vastaukset (vastaaja_id, kysymys_id, vastaus_id) VALUES (?, ?, ?)"
+      return Nothing
 
 pairs :: [a] -> [(a, a)]
 pairs [] = []
@@ -106,16 +107,17 @@ pairs (x:y:xs) = (x, y) : pairs xs
 loadManyToMany :: Connection -> Vector B.ByteString -> Int -> ManyToMany -> StateT IdCaches IO ()
 loadManyToMany conn row vid (ManyToMany jt cn c vt) = do
   let vals = V.toList $ uniques $ parseMultiple $ textColumnValue c row
+      q = Query $ "INSERT INTO " `T.append` jt `T.append` " (vastaaja_id, " `T.append` cn `T.append` ") values (?, ?)"
   ids <- queryIds conn vt vals
-  lift $ mapM_ (loadManyToManyEntry conn jt cn vid) (zip vals ids)
+  ps <- lift $ mapM (loadManyToManyEntry jt vid) (zip vals ids)
+  lift $ executeMany conn q (catMaybes ps)
 
-loadManyToManyEntry :: Connection -> T.Text -> T.Text -> Int -> (T.Text, Maybe Int) -> IO ()
-loadManyToManyEntry conn t c vid (_, (Just cid)) = do
-  let q = Query $ "INSERT INTO " `T.append` t `T.append` " (vastaaja_id, " `T.append` c `T.append` ") values (?, ?)"
-      p = (vid, cid)
-  execute conn q p
-loadManyToManyEntry _ t _ _ (v, Nothing) = do
+loadManyToManyEntry :: T.Text -> Int -> (T.Text, Maybe Int) -> IO (Maybe (Int, Int))
+loadManyToManyEntry _ vid (_, (Just cid)) = do
+  return $ Just (vid, cid)
+loadManyToManyEntry t _ (v, Nothing) = do
   putStrLn $ "Could not find ID for value " ++ (T.unpack v) ++ " for table " ++ (T.unpack t)
+  return Nothing
 
 constructVastaajaParams :: Connection -> Vector B.ByteString -> [Maybe (String, FieldMapping)] -> [StateT IdCaches IO (String, SQLData)]
 constructVastaajaParams conn row fms = foldr f [] (zip (V.toList row) fms)
@@ -313,6 +315,45 @@ fieldMapping = [ Nothing
                , Just ("vuositulot", TableReference 37 "vuositulot")
                , Just ("sijoitukset", TableReference 38 "sijoitukset")
                ] ++ repeat Nothing
+
+fieldNames :: [String]
+fieldNames = [ "id"
+             , "sukunimi"
+             , "etunimi"
+             , "puolue"
+             , "ika"
+             , "sukupuoli"
+             , "kansanedustaja"
+             , "vastattu"
+             , "valittu"
+             , "sitoutumaton"
+             , "kotikunta"
+             , "ehdokasnumero"
+             , "miksi_eduskuntaan"
+             , "mita_edistaa"
+             , "vaalilupaus1"
+             , "vaalilupaus2"
+             , "vaalilupaus3"
+             , "aidinkieli"
+             , "kotisivu"
+             , "facebook"
+             , "twitter"
+             , "lapsia"
+             , "perhe"
+             , "vapaa_ajalla"
+             , "tyonantaja"
+             , "ammattiasema"
+             , "ammatti"
+             , "koulutus"
+             , "uskonnollinen_yhteiso"
+             , "puolueen_jasen"
+             , "vaalibudjetti"
+             , "ulkopuolisen_rahoituksen_osuus"
+             , "ulkopuolisen_rahoituken_lahde"
+             , "sidonnaisuudet"
+             , "vuositulot"
+             , "sijoitukset"
+             ]
 
 data ManyToMany = ManyToMany T.Text T.Text Int T.Text
                 -- "join_table_name" "join_table_column_name" <csv_column> "value_table"
