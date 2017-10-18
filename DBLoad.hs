@@ -66,26 +66,32 @@ loadVastaajatTable conn ks csvData = do
   let fs = intercalate "," fieldNames
       qms = intercalate "," $ map (const "?") fieldNames
       q = Query $ T.pack $ "INSERT INTO vastaajat (" ++ fs ++ ") VALUES (" ++ qms ++ ")"
-  ps <- V.mapM (loadVastaajatRow conn ks) csvData
+      qv = Query $ "INSERT INTO vastaaja_vastaukset (vastaaja_id, kysymys_id, vastaus_id) VALUES (?, ?, ?)"
+  -- TODO: This is getting pretty ugly. Should use the StateT instead, but too lazy right now.
+  (ps, vs) <- V.foldM collectRows ([],[]) csvData
   lift $ putStrLn ""
-  lift $ executeMany conn q (V.toList ps)
+  lift $ executeMany conn q ps
+  lift $ executeMany conn qv vs
+  where
+    collectRows :: ([[SQLData]], [(Int, Int, Int)]) -> Vector B.ByteString -> StateT IdCaches IO ([[SQLData]], [(Int, Int, Int)])
+    collectRows (ps, vs) row = do
+      (p, v) <- loadVastaajatRow conn ks row
+      return (p:ps, v++vs)
 
-loadVastaajatRow :: Connection -> [(Int, (Int, T.Text))] -> Vector B.ByteString -> StateT IdCaches IO [SQLData]
+loadVastaajatRow :: Connection -> [(Int, (Int, T.Text))] -> Vector B.ByteString -> StateT IdCaches IO ([SQLData], [(Int, Int, Int)])
 loadVastaajatRow conn ks row = do
   params <- sequence $ constructVastaajaParams conn row fieldMapping
   let ("id", (SQLInteger vid')) = head params
       vid = fromIntegral vid'
   mapM_ (loadManyToMany conn row vid) manyToManyMapping
-  loadVastaajatVastaukset conn ks vid row
+  vs <- loadVastaajatVastaukset conn ks vid row
   lift $ putStr "."
-  return $ map snd params
+  return $ (map snd params, vs)
 
-loadVastaajatVastaukset :: Connection -> [(Int, (Int, T.Text))] -> Int -> Vector B.ByteString -> StateT IdCaches IO ()
+loadVastaajatVastaukset :: Connection -> [(Int, (Int, T.Text))] -> Int -> Vector B.ByteString -> StateT IdCaches IO [(Int, Int, Int)]
 loadVastaajatVastaukset conn ks vid row = do
   vs <- mapM (loadVastaajatVastaus conn vid row) ks
-  lift $ executeMany conn q (catMaybes vs) -- Why is this so slow?
-  where
-    q = Query $ "INSERT INTO vastaaja_vastaukset (vastaaja_id, kysymys_id, vastaus_id) VALUES (?, ?, ?)"
+  return (catMaybes vs)
 
 loadVastaajatVastaus :: Connection -> Int -> Vector B.ByteString -> (Int, (Int, T.Text)) -> StateT IdCaches IO (Maybe (Int, Int, Int))
 loadVastaajatVastaus conn vid row (ki, (kc, _)) = do
