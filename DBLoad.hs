@@ -53,13 +53,14 @@ appendTableData n q rs m =
 
 type ETLState = (IdCaches, TableDataMap)
 
+type ETL a = StateT ETLState IO a
 
 
 loadData :: (Vector B.ByteString, Vector (Vector B.ByteString)) -> Connection -> IO ()
 loadData durtur conn = do
   evalStateT (loadData' durtur conn) (M.empty, M.empty)
 
-loadData' :: (Vector B.ByteString, Vector (Vector B.ByteString)) -> Connection -> StateT ETLState IO ()
+loadData' :: (Vector B.ByteString, Vector (Vector B.ByteString)) -> Connection -> ETL ()
 loadData' (headers, csvData) conn = do
   lift $ putStrLn "Loading data into database."
   mapM_ (\(t, f) -> loadCollectionTable conn t (f csvData)) collectionTables
@@ -73,7 +74,7 @@ loadData' (headers, csvData) conn = do
   mapM_ (storeTable tm) sts
   lift $ putStrLn "All done."
   where
-    -- storeTable :: TableDataMap -> TableName -> StateT ETLState IO ()
+    -- storeTable :: TableDataMap -> TableName -> ETL ()
     storeTable tm tn = do
       case M.lookup tn tm of
         Nothing -> do
@@ -82,9 +83,9 @@ loadData' (headers, csvData) conn = do
           lift $ putStrLn $ "Storing data for table " ++ (T.unpack tn) ++ "."
           lift $ executeMany conn (Query q) vs
 
-loadKysymyksetTable :: Connection -> Vector B.ByteString -> StateT ETLState IO [(Int, (Int, T.Text))]
+loadKysymyksetTable :: Connection -> Vector B.ByteString -> ETL [(Int, (Int, T.Text))]
 loadKysymyksetTable conn headers = do
-  lift $ putStrLn "Loading table kysymykset."
+  lift $ putStrLn "Loading data for table kysymykset."
   lift $ executeMany conn q vs
   return ks
   where
@@ -92,37 +93,37 @@ loadKysymyksetTable conn headers = do
     vs = map (\(i, (_, k)) -> (i, k)) ks
     q = "INSERT INTO kysymykset (id, kysymys) VALUES (?, ?)"
 
-loadVastaajatTable :: Connection -> [(Int, (Int, T.Text))] -> Vector (Vector B.ByteString) -> StateT ETLState IO ()
-loadVastaajatTable conn ks csvData = do
-  lift $ putStrLn "Loading table vastaajat."
+vastaajatQuery :: T.Text
+vastaajatQuery =
   let fs = intercalate "," fieldNames
       qms = intercalate "," $ map (const "?") fieldNames
-      q = T.pack $ "INSERT INTO vastaajat (" ++ fs ++ ") VALUES (" ++ qms ++ ")"
-      qv = "INSERT INTO vastaaja_vastaukset (vastaaja_id, kysymys_id, vastaus_id) VALUES (?, ?, ?)"
-  -- TODO: This is getting pretty ugly. Should use the StateT instead, but too lazy right now.
+  in T.pack $ "INSERT INTO vastaajat (" ++ fs ++ ") VALUES (" ++ qms ++ ")"
+
+vastaaja_vastauksetQuery :: T.Text
+vastaaja_vastauksetQuery = "INSERT INTO vastaaja_vastaukset (vastaaja_id, kysymys_id, vastaus_id) VALUES (?, ?, ?)"
+
+loadVastaajatTable :: Connection -> [(Int, (Int, T.Text))] -> Vector (Vector B.ByteString) -> ETL ()
+loadVastaajatTable conn ks csvData = do
+  lift $ putStrLn "Loading data for table vastaajat."
   (ps, vs) <- V.foldM collectRows ([],[]) csvData
   (ic, tm) <- S.get
-  let tm' = M.fromList [ ("vastaajat", (TableData q ps))
-                       , ("vastaaja_vastaukset", (TableData qv vs))
+  let tm' = M.fromList [ ("vastaajat", (TableData vastaajatQuery ps))
+                       , ("vastaaja_vastaukset", (TableData vastaaja_vastauksetQuery vs))
                        ]
   S.put (ic, M.union tm' tm)
-  lift $ putStrLn "Done"
-  -- lift $ executeMany conn (Query q) ps
-  -- lift $ executeMany conn qv vs
   where
-    collectRows :: ([[SQLData]], [[SQLData]]) -> Vector B.ByteString -> StateT ETLState IO ([[SQLData]], [[SQLData]])
+    collectRows :: ([[SQLData]], [[SQLData]]) -> Vector B.ByteString -> ETL ([[SQLData]], [[SQLData]])
     collectRows (ps, vs) row = do
       (p, v) <- loadVastaajatRow conn ks row
       return (p:ps, v++vs)
 
-loadVastaajatRow :: Connection -> [(Int, (Int, T.Text))] -> Vector B.ByteString -> StateT ETLState IO ([SQLData], [[SQLData]])
+loadVastaajatRow :: Connection -> [(Int, (Int, T.Text))] -> Vector B.ByteString -> ETL ([SQLData], [[SQLData]])
 loadVastaajatRow conn ks row = do
   params <- sequence $ constructVastaajaParams conn row fieldMapping
   let ("id", (SQLInteger vid')) = head params
       vid = fromIntegral vid'
   mapM_ (loadManyToMany conn row vid) manyToManyMapping
   vs <- loadVastaajatVastaukset conn ks vid row
-  lift $ putStr "."
   return $ (map snd params, map toSQLDataList vs)
   where
     toSQLDataList (i1, i2, i3) = [ SQLInteger (fromIntegral i1)
@@ -130,12 +131,12 @@ loadVastaajatRow conn ks row = do
                                  , SQLInteger (fromIntegral i3)
                                  ]
 
-loadVastaajatVastaukset :: Connection -> [(Int, (Int, T.Text))] -> Int -> Vector B.ByteString -> StateT ETLState IO [(Int, Int, Int)]
+loadVastaajatVastaukset :: Connection -> [(Int, (Int, T.Text))] -> Int -> Vector B.ByteString -> ETL [(Int, Int, Int)]
 loadVastaajatVastaukset conn ks vid row = do
   vs <- mapM (loadVastaajatVastaus conn vid row) ks
   return (catMaybes vs)
 
-loadVastaajatVastaus :: Connection -> Int -> Vector B.ByteString -> (Int, (Int, T.Text)) -> StateT ETLState IO (Maybe (Int, Int, Int))
+loadVastaajatVastaus :: Connection -> Int -> Vector B.ByteString -> (Int, (Int, T.Text)) -> ETL (Maybe (Int, Int, Int))
 loadVastaajatVastaus conn vid row (ki, (kc, _)) = do
   let v = textColumnValue kc row
       k = textColumnValue (kc + 1) row
@@ -152,12 +153,12 @@ pairs [] = []
 pairs [x] = []
 pairs (x:y:xs) = (x, y) : pairs xs
 
-loadManyToMany :: Connection -> Vector B.ByteString -> Int -> ManyToMany -> StateT ETLState IO ()
+loadManyToMany :: Connection -> Vector B.ByteString -> Int -> ManyToMany -> ETL ()
 loadManyToMany conn row vid (ManyToMany jt cn c vt) = do
   let vals = V.toList $ uniques $ parseMultiple $ textColumnValue c row
       q = "INSERT INTO " `T.append` jt `T.append` " (vastaaja_id, " `T.append` cn `T.append` ") values (?, ?)"
   ids <- queryIds conn vt vals
-  ps <- lift $ mapM (loadManyToManyEntry jt vid) (zip vals ids)
+  ps <- mapM (loadManyToManyEntry jt vid) (zip vals ids)
   let vs = map toSQLDataList (catMaybes ps)
   (ic, tm) <- S.get
   S.put (ic, appendTableData jt q vs tm)
@@ -165,20 +166,20 @@ loadManyToMany conn row vid (ManyToMany jt cn c vt) = do
   where
     toSQLDataList (i1, i2) = [SQLInteger (fromIntegral i1), SQLInteger (fromIntegral i2)]
 
-loadManyToManyEntry :: T.Text -> Int -> (T.Text, Maybe Int) -> IO (Maybe (Int, Int))
+loadManyToManyEntry :: T.Text -> Int -> (T.Text, Maybe Int) -> ETL (Maybe (Int, Int))
 loadManyToManyEntry _ vid (_, (Just cid)) = do
   return $ Just (vid, cid)
 loadManyToManyEntry t _ (v, Nothing) = do
-  putStrLn $ "Could not find ID for value " ++ (T.unpack v) ++ " for table " ++ (T.unpack t)
+  lift $ putStrLn $ "Could not find ID for value " ++ (T.unpack v) ++ " for table " ++ (T.unpack t)
   return Nothing
 
-constructVastaajaParams :: Connection -> Vector B.ByteString -> [Maybe (String, FieldMapping)] -> [StateT ETLState IO (String, SQLData)]
+constructVastaajaParams :: Connection -> Vector B.ByteString -> [Maybe (String, FieldMapping)] -> [ETL (String, SQLData)]
 constructVastaajaParams conn row fms = foldr f [] (zip (V.toList row) fms)
   where
     f (_, Nothing) ps = ps
     f (b, Just fm) ps = fmap (\d -> (fst fm, d)) (constructVastaajaParam conn b (snd fm)) : ps
 
-constructVastaajaParam :: Connection -> B.ByteString -> FieldMapping -> StateT ETLState IO SQLData
+constructVastaajaParam :: Connection -> B.ByteString -> FieldMapping -> ETL SQLData
 constructVastaajaParam _ b (IntColumnIndex n f) = do
   let cv = textValue b
       iv = f cv
@@ -201,9 +202,9 @@ constructVastaajaParam c b (TableReference n t) = do
       lift $ putStrLn $ "Unable to find value '" ++ (T.unpack cv) ++ "' in table '" ++ (T.unpack t) ++ "'"
       return (SQLInteger (-1))
 
-loadCollectionTable :: Connection -> String -> Vector (Int, T.Text) -> StateT ETLState IO ()
+loadCollectionTable :: Connection -> String -> Vector (Int, T.Text) -> ETL ()
 loadCollectionTable c n d = do
-  lift $ putStrLn ("Loading table " ++ n ++ ".")
+  lift $ putStrLn ("Storing data for table " ++ n ++ ".")
   lift $ executeMany c q vs
   (s, t) <- S.get
   S.put $ (foldr (\v m -> cacheId (T.pack n) (swap v) m) s vs, t)
@@ -286,10 +287,10 @@ parseMultiple = V.fromList . splitValues
 splitValues :: T.Text -> [T.Text]
 splitValues = (map T.strip) . (T.splitOn "|")
 
-queryIds :: Connection -> T.Text -> [T.Text] -> StateT ETLState IO [Maybe Int]
+queryIds :: Connection -> T.Text -> [T.Text] -> ETL [Maybe Int]
 queryIds conn t = mapM (queryId conn t)
 
-queryId :: Connection -> T.Text -> T.Text -> StateT ETLState IO (Maybe Int)
+queryId :: Connection -> T.Text -> T.Text -> ETL (Maybe Int)
 queryId c t cv = do
   (c, _) <- S.get
   case M.lookup t c of
