@@ -81,7 +81,7 @@ loadData' (headers, csvData) conn = do
           lift $ putStrLn $ "Could not find data for table " ++ (T.unpack tn) ++ "."
         Just (TableData q vs) -> do
           lift $ putStrLn $ "Storing data for table " ++ (T.unpack tn) ++ "."
-          lift $ executeMany conn (Query q) vs
+          lift $ withTransaction conn $ executeMany conn (Query q) vs
 
 loadKysymyksetTable :: Connection -> Vector B.ByteString -> ETL [(Int, (Int, T.Text))]
 loadKysymyksetTable conn headers = do
