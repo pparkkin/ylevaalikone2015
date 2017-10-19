@@ -86,11 +86,12 @@ loadData' (headers, csvData) conn = do
 loadKysymyksetTable :: Connection -> Vector B.ByteString -> ETL [(Int, (Int, T.Text))]
 loadKysymyksetTable conn headers = do
   lift $ putStrLn "Loading data for table kysymykset."
-  lift $ executeMany conn q vs
+  (ic, tm) <- S.get
+  S.put (ic, appendTableData "kysymykset" q vs tm)
   return ks
   where
     ks = parseKysymykset headers
-    vs = map (\(i, (_, k)) -> (i, k)) ks
+    vs = map (\(i, (_, k)) -> [SQLInteger (fromIntegral i), SQLText k]) ks
     q = "INSERT INTO kysymykset (id, kysymys) VALUES (?, ?)"
 
 vastaajatQuery :: T.Text
@@ -162,7 +163,6 @@ loadManyToMany conn row vid (ManyToMany jt cn c vt) = do
   let vs = map toSQLDataList (catMaybes ps)
   (ic, tm) <- S.get
   S.put (ic, appendTableData jt q vs tm)
-  -- lift $ executeMany conn (Query q) (catMaybes ps)
   where
     toSQLDataList (i1, i2) = [SQLInteger (fromIntegral i1), SQLInteger (fromIntegral i2)]
 
