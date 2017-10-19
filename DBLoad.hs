@@ -205,7 +205,7 @@ constructVastaajaParam c b (TableReference n t) = do
 loadCollectionTable :: Connection -> String -> Vector (Int, T.Text) -> ETL ()
 loadCollectionTable c n d = do
   lift $ putStrLn ("Storing data for table " ++ n ++ ".")
-  lift $ executeMany c q vs
+  lift $ withTransaction c $ executeMany c q vs
   (s, t) <- S.get
   S.put $ (foldr (\v m -> cacheId (T.pack n) (swap v) m) s vs, t)
   where
