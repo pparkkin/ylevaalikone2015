@@ -67,10 +67,10 @@ loadData' (headers, csvData) conn = do
   ks <- loadKysymyksetTable conn headers
   loadVastaajatTable conn ks csvData
   (_, tm) <- S.get
-  let sts = manyToManyTables ++
-            [ "vastaajat"
+  let sts = [ "kysymykset"
+            , "vastaajat"
             , "vastaaja_vastaukset"
-            ]
+            ] ++ manyToManyTables
   mapM_ (storeTable tm) sts
   lift $ putStrLn "All done."
   where
