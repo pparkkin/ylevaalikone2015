@@ -101,7 +101,7 @@ vastaajatQuery =
   in T.pack $ "INSERT INTO vastaajat (" ++ fs ++ ") VALUES (" ++ qms ++ ")"
 
 vastaaja_vastauksetQuery :: T.Text
-vastaaja_vastauksetQuery = "INSERT INTO vastaaja_vastaukset (vastaaja_id, kysymys_id, vastaus_id) VALUES (?, ?, ?)"
+vastaaja_vastauksetQuery = "INSERT INTO vastaaja_vastaukset (vastaaja_id, kysymys_id, vastaus_id, kommentti) VALUES (?, ?, ?, ?)"
 
 loadVastaajatTable :: Connection -> [(Int, (Int, T.Text))] -> Vector (Vector B.ByteString) -> ETL ()
 loadVastaajatTable conn ks csvData = do
@@ -127,24 +127,25 @@ loadVastaajatRow conn ks row = do
   vs <- loadVastaajatVastaukset conn ks vid row
   return $ (map snd params, map toSQLDataList vs)
   where
-    toSQLDataList (i1, i2, i3) = [ SQLInteger (fromIntegral i1)
-                                 , SQLInteger (fromIntegral i2)
-                                 , SQLInteger (fromIntegral i3)
-                                 ]
+    toSQLDataList (i1, i2, i3, t) = [ SQLInteger (fromIntegral i1)
+                                    , SQLInteger (fromIntegral i2)
+                                    , SQLInteger (fromIntegral i3)
+                                    , SQLText t
+                                    ]
 
-loadVastaajatVastaukset :: Connection -> [(Int, (Int, T.Text))] -> Int -> Vector B.ByteString -> ETL [(Int, Int, Int)]
+loadVastaajatVastaukset :: Connection -> [(Int, (Int, T.Text))] -> Int -> Vector B.ByteString -> ETL [(Int, Int, Int, T.Text)]
 loadVastaajatVastaukset conn ks vid row = do
   vs <- mapM (loadVastaajatVastaus conn vid row) ks
   return (catMaybes vs)
 
-loadVastaajatVastaus :: Connection -> Int -> Vector B.ByteString -> (Int, (Int, T.Text)) -> ETL (Maybe (Int, Int, Int))
+loadVastaajatVastaus :: Connection -> Int -> Vector B.ByteString -> (Int, (Int, T.Text)) -> ETL (Maybe (Int, Int, Int, T.Text))
 loadVastaajatVastaus conn vid row (ki, (kc, _)) = do
   let v = textColumnValue kc row
       k = textColumnValue (kc + 1) row
   vi <- queryId conn "vastaukset" v
   case vi of
     Just i ->
-      return $ Just (vid, ki, i)
+      return $ Just (vid, ki, i, k)
     Nothing -> do
       lift $ putStrLn $ "Could not find value " ++ (T.unpack v) ++ " in table vastaukset"
       return Nothing
