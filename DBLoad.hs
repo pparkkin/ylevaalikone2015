@@ -8,7 +8,8 @@ import Data.Function ( on )
 import Data.List ( intercalate, groupBy )
 import Data.Map.Strict ( Map )
 import Data.Maybe ( catMaybes )
-import Data.Text.Encoding ( decodeUtf8 )
+import Data.Text.Encoding ( decodeUtf8With )
+import Data.Text.Encoding.Error ( lenientDecode )
 import Data.Tuple ( swap )
 import Data.Vector ( Vector )
 
@@ -248,7 +249,7 @@ textColumnValue n vector = textValue (vector V.! n)
 
 textValue :: B.ByteString -> T.Text
 textValue b =
-  let cv = T.strip $ decodeUtf8 b
+  let cv = T.strip $ decodeUtf8With lenientDecode b
   -- Use corrected value from valueMapping if available
   in case lookup cv valueMapping of
     Just v -> v
@@ -273,7 +274,7 @@ parseKysymykset hs = V.ifoldl selectKysymys [] hs
   where
     selectKysymys :: [(Int, (Int, T.Text))] -> Int -> B.ByteString -> [(Int, (Int, T.Text))]
     selectKysymys ks c b =
-      case parseKysymys (decodeUtf8 b) of
+      case parseKysymys (textValue b) of
         Right (i, k) -> insertKysymys ks i c k
         Left _ -> ks
     insertKysymys :: [(Int, (Int, T.Text))] -> Int -> Int -> T.Text -> [(Int, (Int, T.Text))]
