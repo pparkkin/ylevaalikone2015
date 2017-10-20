@@ -121,7 +121,7 @@ loadVastaajatTable conn ks csvData = do
 loadVastaajatRow :: Connection -> [(Int, (Int, T.Text))] -> Vector B.ByteString -> ETL ([SQLData], [[SQLData]])
 loadVastaajatRow conn ks row = do
   params <- sequence $ constructVastaajaParams conn row fieldMapping
-  let ("id", (SQLInteger vid')) = head params
+  let ("id", (SQLInteger vid')) = head $ tail params
       vid = fromIntegral vid'
   mapM_ (loadManyToMany conn row vid) manyToManyMapping
   vs <- loadVastaajatVastaukset conn ks vid row
@@ -330,7 +330,7 @@ data FieldMapping = IntColumnIndex Int (T.Text -> Either T.Text Int)-- field val
 
 -- Map fields in `vastaajat` table to CSV columns and other tables
 fieldMapping :: [Maybe (String, FieldMapping)]
-fieldMapping = [ Nothing
+fieldMapping = [ Just ("vaalipiiri", IntColumnIndex 0 (Right . fst . parseVaalipiiriID))
                , Just ("id", IntColumnIndex 1 textToInt)
                , Just ("sukunimi", TextColumnIndex 2)
                , Just ("etunimi", TextColumnIndex 3)
@@ -372,7 +372,8 @@ fieldMapping = [ Nothing
                ] ++ repeat Nothing
 
 fieldNames :: [String]
-fieldNames = [ "id"
+fieldNames = [ "vaalipiiri"
+             , "id"
              , "sukunimi"
              , "etunimi"
              , "puolue"

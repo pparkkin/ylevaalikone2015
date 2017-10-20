@@ -64,6 +64,7 @@ CREATE TABLE sijoitukset (
 );
 
 CREATE TABLE vastaajat (
+  vaalipiiri integer,
   id integer PRIMARY KEY,
   sukunimi text,
   etunimi text,
@@ -101,6 +102,7 @@ CREATE TABLE vastaajat (
   vuositulot integer, -- FK
   sijoitukset integer, -- FK
 
+  FOREIGN KEY (vaalipiiri) REFERENCES vaalipiirit (id),
   FOREIGN KEY (puolue) REFERENCES puolueet (id),
   FOREIGN KEY (sukupuoli) REFERENCES sukupuolet (id),
   FOREIGN KEY (kotikunta) REFERENCES kotikunnat (id),
