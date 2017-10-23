@@ -21,4 +21,6 @@ Setup.hs
 
 .stack-work
 
-test.db
+logs/
+notebook/ylevaalikone2015.sqlite3
+
