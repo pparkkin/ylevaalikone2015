@@ -2,6 +2,8 @@
 
 Explore the data from YLE Vaalikone 2015.
 
+![Screenshot](images/Screenshot_2017-10-24_07-26-37.png)
+
 ## Run Zeppelin Instance to Explore the Data
 
 Requirements:
