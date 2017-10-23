@@ -3,7 +3,7 @@
     {
       "text": "%python.conda activate python35",
       "user": "anonymous",
-      "dateUpdated": "Oct 23, 2017 8:03:18 AM",
+      "dateUpdated": "Oct 23, 2017 11:24:40 PM",
       "config": {
         "colWidth": 12.0,
         "enabled": true,
@@ -31,15 +31,15 @@
       "jobName": "paragraph_1508718056804_2091790357",
       "id": "20171023-002056_1130817578",
       "dateCreated": "Oct 23, 2017 12:20:56 AM",
-      "dateStarted": "Oct 23, 2017 8:03:18 AM",
-      "dateFinished": "Oct 23, 2017 8:03:24 AM",
+      "dateStarted": "Oct 23, 2017 11:24:40 PM",
+      "dateFinished": "Oct 23, 2017 11:24:43 PM",
       "status": "FINISHED",
       "progressUpdateIntervalMs": 500
     },
     {
       "text": "import sys\nprint(sys.version_info)",
       "user": "anonymous",
-      "dateUpdated": "Oct 23, 2017 8:03:18 AM",
+      "dateUpdated": "Oct 23, 2017 11:24:40 PM",
       "config": {
         "colWidth": 12.0,
         "enabled": true,
@@ -67,15 +67,15 @@
       "jobName": "paragraph_1508464952773_-430392869",
       "id": "20171020-020232_1421482205",
       "dateCreated": "Oct 20, 2017 2:02:32 AM",
-      "dateStarted": "Oct 23, 2017 8:03:20 AM",
-      "dateFinished": "Oct 23, 2017 8:03:25 AM",
+      "dateStarted": "Oct 23, 2017 11:24:40 PM",
+      "dateFinished": "Oct 23, 2017 11:24:43 PM",
       "status": "FINISHED",
       "progressUpdateIntervalMs": 500
     },
     {
       "text": "import sqlite3",
       "user": "anonymous",
-      "dateUpdated": "Oct 23, 2017 8:03:19 AM",
+      "dateUpdated": "Oct 23, 2017 11:24:40 PM",
       "config": {
         "colWidth": 12.0,
         "enabled": true,
@@ -98,15 +98,15 @@
       "jobName": "paragraph_1508463676469_605925863",
       "id": "20171020-014116_1176977005",
       "dateCreated": "Oct 20, 2017 1:41:16 AM",
-      "dateStarted": "Oct 23, 2017 8:03:25 AM",
-      "dateFinished": "Oct 23, 2017 8:03:25 AM",
+      "dateStarted": "Oct 23, 2017 11:24:43 PM",
+      "dateFinished": "Oct 23, 2017 11:24:43 PM",
       "status": "FINISHED",
       "progressUpdateIntervalMs": 500
     },
     {
       "text": "conn \u003d sqlite3.connect(\u0027/notebook/ylevaalikone2015.sqlite3\u0027)",
       "user": "anonymous",
-      "dateUpdated": "Oct 23, 2017 8:03:20 AM",
+      "dateUpdated": "Oct 23, 2017 11:24:40 PM",
       "config": {
         "colWidth": 12.0,
         "enabled": true,
@@ -129,15 +129,15 @@
       "jobName": "paragraph_1508463707993_-16936633",
       "id": "20171020-014147_1788022774",
       "dateCreated": "Oct 20, 2017 1:41:47 AM",
-      "dateStarted": "Oct 23, 2017 8:03:25 AM",
-      "dateFinished": "Oct 23, 2017 8:03:26 AM",
+      "dateStarted": "Oct 23, 2017 11:24:43 PM",
+      "dateFinished": "Oct 23, 2017 11:24:43 PM",
       "status": "FINISHED",
       "progressUpdateIntervalMs": 500
     },
     {
       "text": "c \u003d conn.cursor()\nfor row in c.execute(\u0027select vaalipiiri, count(id) from vastaajat group by vaalipiiri\u0027):\n    print(row)",
       "user": "anonymous",
-      "dateUpdated": "Oct 23, 2017 8:03:20 AM",
+      "dateUpdated": "Oct 23, 2017 11:24:40 PM",
       "config": {
         "colWidth": 12.0,
         "enabled": true,
@@ -165,15 +165,15 @@
       "jobName": "paragraph_1508464001034_1882413800",
       "id": "20171020-014641_677541456",
       "dateCreated": "Oct 20, 2017 1:46:41 AM",
-      "dateStarted": "Oct 23, 2017 8:03:26 AM",
-      "dateFinished": "Oct 23, 2017 8:03:26 AM",
+      "dateStarted": "Oct 23, 2017 11:24:43 PM",
+      "dateFinished": "Oct 23, 2017 11:24:44 PM",
       "status": "FINISHED",
       "progressUpdateIntervalMs": 500
     },
     {
       "text": "import matplotlib.pyplot as plt",
       "user": "anonymous",
-      "dateUpdated": "Oct 23, 2017 8:03:20 AM",
+      "dateUpdated": "Oct 23, 2017 11:24:40 PM",
       "config": {
         "colWidth": 12.0,
         "enabled": true,
@@ -196,15 +196,15 @@
       "jobName": "paragraph_1508463771364_583164382",
       "id": "20171020-014251_1636577468",
       "dateCreated": "Oct 20, 2017 1:42:51 AM",
-      "dateStarted": "Oct 23, 2017 8:03:26 AM",
-      "dateFinished": "Oct 23, 2017 8:03:26 AM",
+      "dateStarted": "Oct 23, 2017 11:24:44 PM",
+      "dateFinished": "Oct 23, 2017 11:24:44 PM",
       "status": "FINISHED",
       "progressUpdateIntervalMs": 500
     },
     {
       "text": "c \u003d conn.cursor()\n(ps, vs, cs) \u003d zip(*c.execute(\u0027select v.id, v.value, count(s.id) from vastaajat as s join vaalipiirit as v on s.vaalipiiri \u003d v.id group by s.vaalipiiri\u0027))\n#vs \u003d map(lambda v: v.decode(\u0027unicode-escape\u0027), vs)\nplt.bar(ps, cs)\nplt.xticks(ps, vs, rotation\u003d30, horizontalalignment\u003d\u0027right\u0027)\nplt.tight_layout()\nplt.show()",
       "user": "anonymous",
-      "dateUpdated": "Oct 23, 2017 8:03:20 AM",
+      "dateUpdated": "Oct 23, 2017 11:24:40 PM",
       "config": {
         "colWidth": 12.0,
         "enabled": true,
@@ -240,15 +240,15 @@
       "jobName": "paragraph_1508464108817_-1834306547",
       "id": "20171020-014828_300582384",
       "dateCreated": "Oct 20, 2017 1:48:28 AM",
-      "dateStarted": "Oct 23, 2017 8:03:26 AM",
-      "dateFinished": "Oct 23, 2017 8:03:30 AM",
+      "dateStarted": "Oct 23, 2017 11:24:44 PM",
+      "dateFinished": "Oct 23, 2017 11:24:47 PM",
       "status": "FINISHED",
       "progressUpdateIntervalMs": 500
     },
     {
       "text": "import pandas as pd",
       "user": "anonymous",
-      "dateUpdated": "Oct 23, 2017 8:03:20 AM",
+      "dateUpdated": "Oct 23, 2017 11:24:40 PM",
       "config": {
         "colWidth": 12.0,
         "enabled": true,
@@ -271,15 +271,15 @@
       "jobName": "paragraph_1508464212812_-551448090",
       "id": "20171020-015012_1452897406",
       "dateCreated": "Oct 20, 2017 1:50:12 AM",
-      "dateStarted": "Oct 23, 2017 8:03:27 AM",
-      "dateFinished": "Oct 23, 2017 8:03:31 AM",
+      "dateStarted": "Oct 23, 2017 11:24:44 PM",
+      "dateFinished": "Oct 23, 2017 11:24:47 PM",
       "status": "FINISHED",
       "progressUpdateIntervalMs": 500
     },
     {
-      "text": "df \u003d pd.read_sql_query(\"select v.value, count(s.id) from vastaajat as s join vaalipiirit as v on s.vaalipiiri \u003d v.id group by s.vaalipiiri\", conn)\nz.show(df)",
+      "text": "df \u003d pd.read_sql_query(\"select v.value, count(s.id) as vastaaja_count from vastaajat as s join puolueet as v on s.puolue \u003d v.id group by s.puolue order by vastaaja_count desc\", conn)\nz.show(df)",
       "user": "anonymous",
-      "dateUpdated": "Oct 23, 2017 8:03:21 AM",
+      "dateUpdated": "Oct 23, 2017 11:24:40 PM",
       "config": {
         "colWidth": 12.0,
         "enabled": true,
@@ -308,7 +308,7 @@
         "msg": [
           {
             "type": "TABLE",
-            "data": "value\tcount(s.id)\nHelsingin vaalipiiri\t269\nUudenmaan vaalipiiri\t394\nVarsinais-Suomen vaalipiiri\t166\nSatakunnan vaalipiiri\t126\nAhvenanmaan maakunnan vaalipiiri\t7\nHämeen vaalipiiri\t127\nPirkanmaan vaalipiiri\t203\nKaakkois-Suomen vaalipiiri\t149\nSavo-Karjalan vaalipiiri\t139\nVaasan vaalipiiri\t156\nKeski-Suomen vaalipiiri\t127\nOulun vaalipiiri\t165\nLapin vaalipiiri\t118\n"
+            "data": "value\tvastaaja_count\nVasemmistoliitto\t216\nSuomen Sosialidemokraattinen Puolue\t216\nSuomen Keskusta\t216\nPerussuomalaiset\t215\nKansallinen Kokoomus\t214\nVihreä liitto\t208\nSuomen Kristillisdemokraatit (KD)\t193\nItsenäisyyspuolue\t151\nPiraattipuolue\t123\nSuomen Kommunistinen Puolue\t112\nSuomen ruotsalainen kansanpuolue\t104\nMuutos 2011\t72\nSuomen Työväenpuolue STP\t33\nKommunistinen Työväenpuolue - Rauhan ja Sosialismin puolesta\t30\nPirkanmaan Sitoutumattomat yhteislista\t17\nKöyhien Asialla\t5\nÅländsk Samling\t4\nAhvenanmaan liberaalit\t3\nValitsijayhdistys Jyrki Helminen\t1\nValitsijayhdistys Risto Hintikka\t1\nValitsijayhdistys Sanna Hirvonen\t1\nValitsijayhdistys Jaakko Katajisto\t1\nValitsijayhdistys Kristiina Kreisler\t1\nValitsijayhdistys Jani Leinonen\t1\nValitsijayhdistys Kari Leppäjoki\t1\nValitsijayhdistys Tero Poikolainen\t1\nValitsijayhdistys Ville Punto\t1\nValitsijayhdistys Kim Sjöström\t1\nValitsijayhdistys Joni Tikka\t1\nValitsijayhdistys Jani Pontus Toivanen\t1\nValitsijayhdistys Mika Vähäkangas\t1\nValitsijayhdistys Yakup Yilmaz\t1\n"
           }
         ]
       },
@@ -316,79 +316,15 @@
       "jobName": "paragraph_1508719903076_1553377216",
       "id": "20171023-005143_2032049594",
       "dateCreated": "Oct 23, 2017 12:51:43 AM",
-      "dateStarted": "Oct 23, 2017 8:03:31 AM",
-      "dateFinished": "Oct 23, 2017 8:03:31 AM",
-      "status": "FINISHED",
-      "progressUpdateIntervalMs": 500
-    },
-    {
-      "text": "df \u003d pd.read_sql_query(\"select puolue, avg(kieli_count) as avg_kieli from (select count(kielitaidot.kieli_id) as kieli_count, puolueet.value as puolue, puolueet.id as puolue_id from kielitaidot join vastaajat on kielitaidot.vastaaja_id \u003d vastaajat.id join puolueet on vastaajat.puolue \u003d puolueet.id group by vastaajat.id) group by puolue order by avg_kieli desc\", conn)\nz.show(df)",
-      "user": "anonymous",
-      "dateUpdated": "Oct 23, 2017 8:03:21 AM",
-      "config": {
-        "colWidth": 12.0,
-        "enabled": true,
-        "results": {
-          "0": {
-            "graph": {
-              "mode": "multiBarChart",
-              "height": 300.0,
-              "optionOpen": false,
-              "setting": {
-                "multiBarChart": {}
-              },
-              "commonSetting": {},
-              "keys": [
-                {
-                  "name": "puolue",
-                  "index": 0.0,
-                  "aggr": "sum"
-                }
-              ],
-              "groups": [],
-              "values": [
-                {
-                  "name": "avg_kieli",
-                  "index": 1.0,
-                  "aggr": "sum"
-                }
-              ]
-            },
-            "helium": {}
-          }
-        },
-        "editorSetting": {
-          "language": "python",
-          "editOnDblClick": false
-        },
-        "editorMode": "ace/mode/python"
-      },
-      "settings": {
-        "params": {},
-        "forms": {}
-      },
-      "results": {
-        "code": "SUCCESS",
-        "msg": [
-          {
-            "type": "TABLE",
-            "data": "puolue\tavg_kieli\nValitsijayhdistys Kim Sjöström\t5.0\nÅländsk Samling\t4.5\nValitsijayhdistys Kristiina Kreisler\t4.0\nSuomen ruotsalainen kansanpuolue\t3.423076923076923\nVihreä liitto\t3.389423076923077\nKansallinen Kokoomus\t3.2570093457943927\nSuomen Keskusta\t3.0694444444444446\nAhvenanmaan liberaalit\t3.0\nValitsijayhdistys Kari Leppäjoki\t3.0\nValitsijayhdistys Risto Hintikka\t3.0\nSuomen Kristillisdemokraatit (KD)\t2.937823834196891\nSuomen Sosialidemokraattinen Puolue\t2.7916666666666665\nVasemmistoliitto\t2.7453703703703702\nPiraattipuolue\t2.6341463414634148\nPerussuomalaiset\t2.6325581395348836\nItsenäisyyspuolue\t2.271523178807947\nKöyhien Asialla\t2.2\nSuomen Kommunistinen Puolue\t2.125\nMuutos 2011\t2.013888888888889\nValitsijayhdistys Joni Tikka\t2.0\nValitsijayhdistys Jyrki Helminen\t2.0\nValitsijayhdistys Mika Vähäkangas\t2.0\nPirkanmaan Sitoutumattomat yhteislista\t1.8823529411764706\nSuomen Työväenpuolue STP\t1.606060606060606\nKommunistinen Työväenpuolue - Rauhan ja Sosialismin puolesta\t1.2333333333333334\nValitsijayhdistys Jaakko Katajisto\t1.0\nValitsijayhdistys Jani Leinonen\t1.0\nValitsijayhdistys Jani Pontus Toivanen\t1.0\nValitsijayhdistys Sanna Hirvonen\t1.0\nValitsijayhdistys Tero Poikolainen\t1.0\nValitsijayhdistys Ville Punto\t1.0\nValitsijayhdistys Yakup Yilmaz\t1.0\n"
-          }
-        ]
-      },
-      "apps": [],
-      "jobName": "paragraph_1508720043428_1410802296",
-      "id": "20171023-005403_1170451643",
-      "dateCreated": "Oct 23, 2017 12:54:03 AM",
-      "dateStarted": "Oct 23, 2017 8:03:31 AM",
-      "dateFinished": "Oct 23, 2017 8:03:31 AM",
+      "dateStarted": "Oct 23, 2017 11:24:47 PM",
+      "dateFinished": "Oct 23, 2017 11:24:47 PM",
       "status": "FINISHED",
       "progressUpdateIntervalMs": 500
     },
     {
       "text": "df \u003d pd.read_sql_query(\"select puolue, avg(kieli_count) as avg_kieli from (select count(kielitaidot.kieli_id) as kieli_count, puolueet.value as puolue, puolueet.id as puolue_id from kielitaidot join vastaajat on kielitaidot.vastaaja_id \u003d vastaajat.id join puolueet on vastaajat.puolue \u003d puolueet.id group by vastaajat.id) group by puolue order by avg_kieli asc\", conn)\nax \u003d df.plot(kind \u003d \u0027barh\u0027)\nax.set_yticklabels(df.puolue)\nfor p in ax.patches:\n    ax.annotate(\u0027{0:.2f}\u0027.format(p.get_width()), xy\u003d(p.get_width()+0.1, p.get_y()))\nplt.tight_layout()\nplt.show()",
       "user": "anonymous",
-      "dateUpdated": "Oct 23, 2017 8:03:21 AM",
+      "dateUpdated": "Oct 23, 2017 11:24:40 PM",
       "config": {
         "colWidth": 12.0,
         "enabled": true,
@@ -416,14 +352,14 @@
       "jobName": "paragraph_1508721517544_-1570497103",
       "id": "20171023-011837_1326902860",
       "dateCreated": "Oct 23, 2017 1:18:37 AM",
-      "dateStarted": "Oct 23, 2017 8:03:31 AM",
-      "dateFinished": "Oct 23, 2017 8:03:59 AM",
+      "dateStarted": "Oct 23, 2017 11:24:47 PM",
+      "dateFinished": "Oct 23, 2017 11:25:12 PM",
       "status": "FINISHED",
       "progressUpdateIntervalMs": 500
     },
     {
       "user": "anonymous",
-      "dateUpdated": "Oct 23, 2017 8:03:21 AM",
+      "dateUpdated": "Oct 23, 2017 11:24:40 PM",
       "config": {
         "colWidth": 12.0,
         "enabled": true,
@@ -449,25 +385,25 @@
   "name": "Test",
   "id": "2CX4D4RV6",
   "angularObjects": {
-    "2CXWE6HNE:shared_process": [],
-    "2CWG3BJ9T:shared_process": [],
-    "2CYHZ1W6P:shared_process": [],
-    "2CVNETZZW:shared_process": [],
-    "2CWGAX33R:shared_process": [],
-    "2CWT7UD1M:shared_process": [],
-    "2CXQR2FGT:shared_process": [],
-    "2CX4Q1YP3:shared_process": [],
-    "2CW6ZVRJY:shared_process": [],
-    "2CX7FB28J:shared_process": [],
-    "2CW2UF5B9:shared_process": [],
-    "2CXU3CJHZ:shared_process": [],
-    "2CX2R3BDZ:shared_process": [],
-    "2CY1BXZNP:shared_process": [],
-    "2CYYGXNZ5:shared_process": [],
-    "2CVNRV58M:shared_process": [],
-    "2CXWRVCCF:shared_process": [],
-    "2CV6TDA61:shared_process": [],
-    "2CWJJX8TP:shared_process": []
+    "2CXZN76WY:shared_process": [],
+    "2CWBUQXS2:shared_process": [],
+    "2CYDKF84P:shared_process": [],
+    "2CVY4BWM1:shared_process": [],
+    "2CWDTSD86:shared_process": [],
+    "2CXFJSADP:shared_process": [],
+    "2CY3F64MK:shared_process": [],
+    "2CY38E1JP:shared_process": [],
+    "2CWVAQEXK:shared_process": [],
+    "2CX223BK8:shared_process": [],
+    "2CVKKTK8W:shared_process": [],
+    "2CVGAE7TB:shared_process": [],
+    "2CXUFFNRZ:shared_process": [],
+    "2CW48R37C:shared_process": [],
+    "2CXCRKTWK:shared_process": [],
+    "2CWUQXZW1:shared_process": [],
+    "2CYKJ5PFZ:shared_process": [],
+    "2CZ17C29T:shared_process": [],
+    "2CVX298EQ:shared_process": []
   },
   "config": {},
   "info": {}
