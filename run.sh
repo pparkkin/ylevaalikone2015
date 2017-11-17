@@ -11,14 +11,11 @@ if [ ! -f vastaukset_avoimena_datana.csv ]; then
 fi
 
 ## Load data from CSV file into a SQLite database
-mkdir -p notebook
-if [ ! -f notebook/ylevaalikone2015.sqlite3 ]; then
-    stack exec dbcreate notebook/ylevaalikone2015.sqlite3
+data_dir=work/data
+mkdir -p "$data_dir"
+if [ ! -f "$data_dir/ylevaalikone2015.sqlite3" ]; then
+    stack exec dbcreate "$data_dir/ylevaalikone2015.sqlite3"
 fi
 
-## Build Zeppelin Docker image
-docker build -t ylevaalikone2015 .
-
-## Run Zeppelin Docker image
-mkdir -p logs
-docker run -p 8080:8080 --rm -v $PWD/logs:/logs -v $PWD/notebook:/notebook -e ZEPPELIN_LOG_DIR='/logs' -e ZEPPELIN_NOTEBOOK_DIR='/notebook' --name ylevaalikone2015 ylevaalikone2015
+## Run Jupyter Docker image
+docker run -it --rm -p 8888:8888 -v "`pwd`/work:/home/jovyan/work" jupyter/datascience-notebook

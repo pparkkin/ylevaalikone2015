@@ -21,6 +21,6 @@ Setup.hs
 
 .stack-work
 
-logs/
-notebook/ylevaalikone2015.sqlite3
+work/data/ylevaalikone2015.sqlite3
 
+.ipynb_checkpoints
